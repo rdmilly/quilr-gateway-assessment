@@ -1,0 +1,12 @@
+# Example settings for running the assessment locally. Copy to config.toml to use.
+#
+# The tokens are fake test values, and only their SHA-256 hashes are stored here:
+#   test-admin-token   -> subject "alice",  role admin
+#   test-viewer-token  -> subject "victor", role viewer
+# To add a token:  uv run python -c "from shared.auth import hash_token; print(hash_token('...'))"
+
+[auth]
+tokens = [
+    { sha256 = "17d6bfe05d1b1fb7bc499f8e3f639c7b3eda4c40f321eef8887a0c04c89a99c5", subject = "alice", role = "admin" },
+    { sha256 = "04afacc947b28c94e15578a9db68c1d1bf775b3ff82bc88e31d4465f26bc0b42", subject = "victor", role = "viewer" },
+]
