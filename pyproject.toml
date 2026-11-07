@@ -3,7 +3,7 @@ name = "quilr-gateway-assessment"
 version = "0.1.0"
 description = "MCP server, MCP security gateway, streaming PII guardrail and rate-limited model router, built for the QuilrAI Solution Architect assessment."
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.15"
 license = "MIT"
 authors = [{ name = "Ryan Milly" }]
 dependencies = [
