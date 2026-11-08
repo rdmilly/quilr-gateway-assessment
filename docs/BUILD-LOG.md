@@ -31,3 +31,16 @@ Found while building:
 - Escapes such as `\u200b` typed into remote commands arrived as the literal invisible characters. All test files were scanned and invisible or look-alike characters restored to escapes.
 
 `import-linter` now enforces that tasks never import each other, the shared kit imports no task, and product code never imports the mocks.
+
+## 4. Task 2 hardening and two extras
+
+Checked against the published 2026-07-28 spec, the gateway now enforces the routing headers, answers refused notifications with 403 instead of 202, sends errors that answer no single request without an id, and limits tool names to the MCP character set (closing look-alike letters). `-32001` comes back exactly as the brief names it. Extras: an optional idempotency key on `trigger_refund`, and an optional JWT mode with audience binding.
+
+## 5. Task 3: streaming PII guardrail (`task3_pii_guardrail/`, `mocks/llm_provider.py`)
+
+A streaming redactor with bounded holdback, an incremental SSE reader, per-choice and per-tool-call redaction, and an OpenAI-compatible endpoint. Found while building:
+
+- Partial matching alone reported `a@mail.example` as complete while `.org` was still coming; property tests found it, and an anchored "could it still grow" check fixed it.
+- A card-shaped window inside a long tracking number was redacted; digits continuing past a separator now count as one longer number.
+- The in-memory test transport collects whole responses, hiding streaming; time to first token is measured with real processes instead.
+- Mock controls sent as headers never reached the mock, because the gateway rightly forwards only what the provider needs; they moved into the body.

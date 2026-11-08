@@ -224,19 +224,37 @@ Every choice where a reasonable person could have gone another way: what we chos
 - **Instead of:** Forwarding notifications unchecked, or answering 202 and dropping it.
 - **Why:** Otherwise a caller could trigger an admin tool by leaving out the id. MCP says a notification the server cannot accept gets an HTTP error status, never 202.
 
-## Task 3 (planned)
+## Task 3
 
 ### T3-D1. Holdback buffer with partial matching
 
-- **Chose:** regex module partial matches; hold at most 256 characters.
-- **Instead of:** Buffer the whole response; fixed-size windows.
-- **Why:** Keeps TTFT low and memory flat. 256 covers the longest valid email (254).
+- **Chose:** The regex module's partial matching, plus an anchored check for complete matches that could still grow; release everything that cannot be part of a match, hold at most 256 characters.
+- **Instead of:** Buffering the whole response; fixed-size sliding windows.
+- **Why:** Keeps time to first token low and memory flat. 256 covers the longest valid email (254). Property tests prove streaming output equals whole-text redaction for any split.
 
 ### T3-D2. What counts as PII
 
-- **Chose:** Practical email pattern, SSN with SSA rules, cards 12 to 19 digits with Luhn, NFKC shadow matching.
-- **Instead of:** Loose digit runs; ML detection.
-- **Why:** Low false positives while catching common evasion. Spelled-out numbers are out of scope and documented.
+- **Chose:** Practical email pattern; SSNs in 3-2-4 form with one separator, including numbers the SSA never issues; cards of 13 to 19 digits that pass Luhn or are written 4-4-4-4; Unicode digits and letters via \d and \w.
+- **Instead of:** SSA validity rules and Luhn-only cards (the original plan); NFKC shadow matching; ML detection.
+- **Why:** A guardrail should not leak made-up test data such as 999-99-9999 or 1234 5678 9012 3456. Unicode-aware classes catch full-width digits without mapping offsets between a normalized copy and the original. Nine bare digits and Luhn-failing runs pass, to keep order and tracking numbers readable.
+
+### T3-D3. Non-streamed answers are redacted too
+
+- **Chose:** Redact message content and tool call arguments in the full JSON answer.
+- **Instead of:** Streaming only.
+- **Why:** Otherwise "stream": false would be a way around the guardrail.
+
+### T3-D4. Redact per choice and per tool call
+
+- **Chose:** One redactor per choice and one per tool call's arguments; held text released into the finishing chunk.
+- **Instead of:** One redactor for the whole stream.
+- **Why:** Choices and tool calls interleave; mixing them would join text that never belonged together and miss PII split within one of them.
+
+### T3-D5. Provider errors never read
+
+- **Chose:** Close a non-200 provider response unread; return a fixed error envelope, keeping Retry-After on 429.
+- **Instead of:** Passing the provider's error through, or reading it to rewrite it.
+- **Why:** The brief's Task 4 requires no leaked upstream details, and the mock 500 carries a stack trace, a file path and an internal IP to prove it.
 
 ## Task 4 (planned)
 

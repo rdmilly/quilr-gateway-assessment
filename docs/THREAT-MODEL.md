@@ -63,13 +63,20 @@ Threats tracked per component and trust boundary (B1 to B9). Status: **defended 
 | Viewer learns admin tool names from tools/list | proxy | Information disclosure | Accepted: the brief asks for transparent forwarding. Filtering is a production option (DECISIONS.md T2-D9). | test_gateway.py::test_tools_list_is_forwarded_transparently | open |
 | Gateway identity headers forged by someone who can reach the server directly | B2 | Spoofing | The server must only be reachable from the gateway (private network or mTLS). Not enforceable from the gateway; documented. | README, Decisions worth knowing | open |
 
-## Task 3 (planned)
+## Task 3
 
 | Threat | Where | Class | Defense | Proof | Status |
 | --- | --- | --- | --- | --- | --- |
-| PII split across chunks slips through | pii, B3 | LLM02 sensitive information disclosure | Holdback buffer with partial regex matching: release text as soon as it cannot be the start of a match, hold the rest (cap 256 characters). | planned | planned |
-| Obfuscated PII (full-width digits, spaced card numbers) | pii | Evasion | Match on an NFKC-normalized shadow copy; cards checked with Luhn; spelled-out numbers documented as out of scope. | planned | planned |
-| Buffering kills time to first token | pii, B3 | Latency | Only hold back what could still become a match; benchmark TTFT overhead. | planned | planned |
+| PII split across chunks slips through | pii, B3 | LLM02 sensitive information disclosure | Holdback buffer with partial matching plus an anchored "could it still grow" check; per choice and per tool call. | test_redactor.py property tests (any split equals whole-text redaction; PII never survives); 139k offline random cases | defended + tested |
+| Obfuscated digits (full-width, other scripts) | pii | Evasion | Unicode-aware \d and \w; Luhn over Unicode digits. | test_patterns.py (full-width SSN, full-width Luhn) | defended + tested |
+| "stream": false bypasses the guardrail | pii, B3 | LLM02 | Non-streamed answers are redacted too, including tool call arguments and legacy text. | test_endpoint.py::test_non_streamed_answer_is_redacted_too; test_completions.py | defended + tested |
+| PII in tool call arguments | pii | LLM02, ASI02 | Arguments redacted per tool call, same as content. | test_endpoint.py::test_tool_call_arguments_are_redacted | defended + tested |
+| Buffering kills time to first token | pii, B3 | Latency | Only possible matches are held; median 5 us added per chunk. | test_processes.py::test_first_text_arrives_long_before_the_provider_finishes; bench.py | defended + tested |
+| A huge or endless event exhausts memory | pii, B3 | LLM10 unbounded consumption | Held text capped at 256 characters per stream; SSE events over 1 MiB cut the stream; non-streamed answers capped at 8 MiB. | test_redactor.py::test_held_text_never_exceeds_the_cap; test_failures.py::test_oversized_event_cuts_the_stream | defended + tested |
+| Held half of a card number leaks when the stream breaks | pii, B3 | LLM02 | On a broken stream nothing more is sent; held text is only released when the stream ends normally. | test_failures.py::test_stream_that_breaks_midway_is_closed_cleanly | defended + tested |
+| Provider error leaks internals | router, B3 | Information disclosure | Provider error bodies are never read; fixed error envelope. | test_endpoint.py::test_provider_errors_are_sanitized | defended + tested |
+| Caller's key forwarded to the provider | B3 | Token passthrough | The provider gets the gateway's key from the environment; the caller's Authorization is never forwarded. | test_endpoint.py::test_provider_gets_the_gateway_key_never_the_callers | defended + tested |
+| PII spelled out in words, or names and phone numbers | pii | Coverage gap | Out of scope; documented in the README. | README, Known limits | open |
 
 ## Task 4 (planned)
 
