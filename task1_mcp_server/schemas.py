@@ -104,10 +104,25 @@ class GetCustomerRecordInput(_Model):
     customer_id: CustomerId
 
 
+IdempotencyKey = Annotated[
+    str,
+    Field(
+        pattern=r"^[A-Za-z0-9_-]{8,128}$",
+        description=(
+            "Optional. Send the same key when retrying the same refund: the retry returns "
+            "the original receipt instead of refunding twice. 8 to 128 letters, digits, "
+            "'_' or '-', for example a UUID."
+        ),
+        examples=["3f2b9c1e-7d4a-4e8b-9a61-0c2d5e6f7a8b"],
+    ),
+]
+
+
 class TriggerRefundInput(_Model):
     customer_id: CustomerId
     amount: Amount
     reason: Reason
+    idempotency_key: IdempotencyKey | None = None
 
 
 class CustomerRecord(_Model):
@@ -122,5 +137,8 @@ class RefundReceipt(_Model):
     refund_id: str
     customer_id: str
     amount: str = Field(description="Amount refunded, as an exact decimal string.")
-    status: str
+    status: str = Field(
+        description="'processed', or 'already_processed' when a retry with the same "
+        "idempotency key returns the original receipt."
+    )
     remaining_refundable_balance: str

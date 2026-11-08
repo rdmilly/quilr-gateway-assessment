@@ -8,8 +8,12 @@ from __future__ import annotations
 
 import threading
 import uuid
+from collections import OrderedDict
 from dataclasses import dataclass
 from decimal import Decimal
+
+MAX_REMEMBERED_KEYS = 10_000
+"""Idempotency keys kept in memory; the oldest are forgotten first, so memory stays bounded."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -22,6 +26,13 @@ class Customer:
 
 class RefundRejected(Exception):
     """A business rule said no. The tool reports this as a tool error, not a protocol error."""
+
+
+@dataclass(frozen=True, slots=True)
+class Refund:
+    refund_id: str
+    remaining: Decimal
+    replayed: bool = False  # True when this is the stored result of an earlier, identical call
 
 
 _SEED: tuple[tuple[Customer, Decimal], ...] = (
@@ -41,6 +52,8 @@ class CustomerStore:
     def __init__(self) -> None:
         self._customers = {c.customer_id: c for c, _ in _SEED}
         self._balances = {c.customer_id: balance for c, balance in _SEED}
+        # idempotency key -> (what the first call asked for, what it returned)
+        self._by_key: OrderedDict[str, tuple[tuple[str, Decimal, str], Refund]] = OrderedDict()
         self._lock = threading.Lock()
 
     def get(self, customer_id: str) -> Customer | None:
@@ -50,9 +63,28 @@ class CustomerStore:
         with self._lock:
             return self._balances[customer_id]
 
-    def refund(self, customer_id: str, amount: Decimal) -> tuple[str, Decimal]:
-        """Reduce the balance by ``amount``; return ``(refund_id, remaining balance)``."""
+    def refund(
+        self,
+        customer_id: str,
+        amount: Decimal,
+        reason: str = "",
+        idempotency_key: str | None = None,
+    ) -> Refund:
+        """Reduce the balance by ``amount``, at most once per idempotency key.
+
+        The key check, the balance check and the update all happen under one
+        lock, so two identical retries arriving together still pay out once.
+        """
+        request = (customer_id, amount, reason)
         with self._lock:
+            if idempotency_key is not None and idempotency_key in self._by_key:
+                first_request, first_result = self._by_key[idempotency_key]
+                if first_request != request:
+                    raise RefundRejected(
+                        "This idempotency key was already used for a different refund."
+                    )
+                return Refund(first_result.refund_id, first_result.remaining, replayed=True)
+
             balance = self._balances[customer_id]
             if amount > balance:
                 raise RefundRejected(
@@ -60,4 +92,9 @@ class CustomerStore:
                     f"for {customer_id}."
                 )
             self._balances[customer_id] = balance - amount
-            return f"rf_{uuid.uuid4().hex}", balance - amount
+            result = Refund(f"rf_{uuid.uuid4().hex}", balance - amount)
+            if idempotency_key is not None:
+                self._by_key[idempotency_key] = (request, result)
+                if len(self._by_key) > MAX_REMEMBERED_KEYS:
+                    self._by_key.popitem(last=False)
+            return result

@@ -5,7 +5,7 @@ An MCP server on the official Python SDK (`mcp` 2.3.0), served over stdio, with 
 | Tool | Arguments | Returns |
 | --- | --- | --- |
 | `get_customer_record` | `customer_id`: `CUST-` and five digits | The customer's profile and refundable balance |
-| `trigger_refund` | `customer_id`, `amount` (positive, at most 2 decimals), `reason` (10 to 500 characters) | A refund receipt |
+| `trigger_refund` | `customer_id`, `amount` (positive, at most 2 decimals), `reason` (10 to 500 characters); optional `idempotency_key` | A refund receipt |
 
 ## Run it
 
@@ -55,6 +55,17 @@ All in `schemas.py`, one strict Pydantic model per tool. The same models produce
 - **`customer_id`** must be exactly `CUST-` plus five ASCII digits. It stays a string, so `CUST-00042` keeps its zeros. Rejected: a trailing newline, full-width or Arabic-Indic digits, and wrong case.
 - **`amount`** must be finite and greater than 0, with at most two decimal places. Money is handled as `Decimal` internally, so three refunds of 0.10 leave exactly 0.30 less.
 - **`reason`** must be 10 to 500 characters, with at least 10 left after trimming spaces. Control characters, zero-width characters, bidi overrides, private-use characters and lone surrogates are rejected, so ten invisible characters cannot pass a ten-character rule.
+
+## Retries never refund twice
+
+Agents retry, especially after a timeout, and a duplicate refund is real money. `trigger_refund` takes an optional `idempotency_key` (8 to 128 letters, digits, `_` or `-`, such as a UUID). The brief's three inputs are unchanged; without a key every call refunds, exactly as before.
+
+- Same key, same customer, amount and reason: the original receipt comes back with `status: "already_processed"`, and nothing is charged again.
+- Same key, anything different: refused as a tool error, because reusing a key for another refund is a client bug.
+- A refund that was refused (over the balance) does not use up the key.
+- The key check, the balance check and the update share one lock, so 20 identical retries arriving at once still pay once (tested).
+
+Keys live in memory, capped at the 10,000 most recent; a restart forgets them. Production would store them in the database with an expiry.
 
 ## Keeping stdout clean
 

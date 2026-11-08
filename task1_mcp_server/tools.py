@@ -105,16 +105,17 @@ def _trigger_refund(args: TriggerRefundInput, store: CustomerStore) -> types.Cal
         return _tool_error(f"No customer with ID {args.customer_id}.")
     amount = Decimal(str(args.amount))
     try:
-        refund_id, remaining = store.refund(args.customer_id, amount)
+        refund = store.refund(args.customer_id, amount, args.reason, args.idempotency_key)
     except RefundRejected as exc:
         return _tool_error(str(exc))
     return _ok(
         RefundReceipt(
-            refund_id=refund_id,
+            refund_id=refund.refund_id,
             customer_id=args.customer_id,
             amount=_money(amount),
-            status="processed",
-            remaining_refundable_balance=_money(remaining),
+            # "already_processed" tells a retrying agent nothing new happened.
+            status="already_processed" if refund.replayed else "processed",
+            remaining_refundable_balance=_money(refund.remaining),
         )
     )
 
@@ -134,7 +135,8 @@ TOOLS: tuple[ToolSpec, ...] = (
         title="Trigger refund",
         description=(
             "Issue a refund to a customer. Moves money and cannot be undone, so confirm "
-            "the amount and reason with the user first."
+            "the amount and reason with the user first. Pass an idempotency_key and reuse "
+            "it on retries so a retry never refunds twice."
         ),
         input_model=TriggerRefundInput,
         output_model=RefundReceipt,

@@ -182,3 +182,103 @@ def test_concurrent_refunds_cannot_overspend(store: CustomerStore) -> None:
         t.join()
     assert results.count(True) == 12
     assert store.balance("CUST-10001") == Decimal("0.00")
+
+
+# --- idempotency key -----------------------------------------------------------
+
+KEY = "retry-key-0001"
+
+
+def refund_args(**overrides: object) -> dict[str, object]:
+    args: dict[str, object] = {
+        "customer_id": "CUST-10001",
+        "amount": 25,
+        "reason": REASON,
+        "idempotency_key": KEY,
+    }
+    args.update(overrides)
+    return args
+
+
+def test_retry_with_the_same_key_refunds_once(store: CustomerStore) -> None:
+    first = call_tool("trigger_refund", refund_args(), store)
+    retry = call_tool("trigger_refund", refund_args(), store)
+    assert first.structured_content is not None
+    assert retry.structured_content is not None
+    assert retry.structured_content["refund_id"] == first.structured_content["refund_id"]
+    assert first.structured_content["status"] == "processed"
+    assert retry.structured_content["status"] == "already_processed"
+    assert retry.structured_content["remaining_refundable_balance"] == "95.00"
+    assert store.balance("CUST-10001") == Decimal("95.00")  # charged once
+
+
+@pytest.mark.parametrize(
+    "change",
+    [{"amount": 30}, {"reason": "A different reason here"}, {"customer_id": "CUST-00042"}],
+)
+def test_same_key_for_a_different_refund_is_refused(
+    store: CustomerStore, change: dict[str, object]
+) -> None:
+    call_tool("trigger_refund", refund_args(), store)
+    result = call_tool("trigger_refund", refund_args(**change), store)
+    assert result.is_error
+    assert "already used for a different refund" in result.content[0].text  # type: ignore[union-attr]
+    assert store.balance("CUST-10001") == Decimal("95.00")
+    assert store.balance("CUST-00042") == Decimal("250.00")
+
+
+def test_without_a_key_every_call_refunds(store: CustomerStore) -> None:
+    call_tool("trigger_refund", refund_args(idempotency_key=None), store)
+    call_tool("trigger_refund", refund_args(idempotency_key=None), store)
+    assert store.balance("CUST-10001") == Decimal("70.00")
+
+
+def test_a_refused_refund_does_not_use_up_the_key(store: CustomerStore) -> None:
+    too_big = call_tool("trigger_refund", refund_args(amount=500), store)
+    assert too_big.is_error
+    ok = call_tool("trigger_refund", refund_args(amount=500, idempotency_key=KEY + "x"), store)
+    assert ok.is_error  # still too big, but for the right reason
+    assert "exceeds" in ok.content[0].text  # type: ignore[union-attr]
+    assert not call_tool("trigger_refund", refund_args(), store).is_error
+
+
+@pytest.mark.parametrize("key", ["short", "has space in it", "x" * 129, "café-key-1", 12345678])
+def test_badly_formed_keys_are_invalid_params(store: CustomerStore, key: object) -> None:
+    with pytest.raises(MCPError) as exc:
+        call_tool("trigger_refund", refund_args(idempotency_key=key), store)
+    assert exc.value.error.code == -32602
+    assert [e["field"] for e in exc.value.error.data["errors"]] == ["idempotency_key"]
+
+
+def test_concurrent_retries_with_one_key_pay_once(store: CustomerStore) -> None:
+    import threading
+
+    ids: list[str] = []
+    record = threading.Lock()
+    start = threading.Barrier(20)
+
+    def attempt() -> None:
+        start.wait()
+        result = call_tool("trigger_refund", refund_args(), store)
+        assert result.structured_content is not None
+        with record:
+            ids.append(result.structured_content["refund_id"])
+
+    threads = [threading.Thread(target=attempt) for _ in range(20)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert len(set(ids)) == 1
+    assert store.balance("CUST-10001") == Decimal("95.00")
+
+
+def test_remembered_keys_are_bounded(store: CustomerStore, monkeypatch: pytest.MonkeyPatch) -> None:
+    from task1_mcp_server import customers
+
+    monkeypatch.setattr(customers, "MAX_REMEMBERED_KEYS", 2)
+    for i in range(3):
+        call_tool("trigger_refund", refund_args(amount=1, idempotency_key=f"key-number-{i}"), store)
+    # The oldest key was forgotten, so reusing it refunds again (documented trade-off).
+    call_tool("trigger_refund", refund_args(amount=1, idempotency_key="key-number-0"), store)
+    assert store.balance("CUST-10001") == Decimal("116.00")

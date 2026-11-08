@@ -132,11 +132,11 @@ Every choice where a reasonable person could have gone another way: what we chos
 - **Instead of:** Float arithmetic.
 - **Why:** Three refunds of 0.10 must take off exactly 0.30.
 
-### D16. Idempotency key deferred
+### D16. Optional idempotency key on trigger_refund
 
-- **Chose:** Mention as a production addition; build at the end if time allows (30 to 45 min, no debt).
-- **Instead of:** Building it now.
-- **Why:** Not in the brief, and three tasks remain. It touches only Task 1 files, so later costs the same as now.
+- **Chose:** An optional idempotency_key; a retry with the same key and arguments returns the original receipt, a reused key with different arguments is refused. Kept in memory, newest 10,000 keys.
+- **Instead of:** Leaving duplicate refunds to the client, or making the key required.
+- **Why:** Agents retry after timeouts, and a duplicate refund is real money (OWASP ASI02, tool misuse). Optional keeps the brief's three inputs and behavior unchanged.
 
 ## Task 2
 
