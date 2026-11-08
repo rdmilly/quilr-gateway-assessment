@@ -29,6 +29,7 @@ dev = [
     "ruff",
     "mypy",
     "import-linter",
+    "types-regex",
 ]
 
 [build-system]
@@ -36,7 +37,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["shared", "task1_mcp_server", "task2_mcp_gateway"]
+packages = ["shared", "task1_mcp_server", "task2_mcp_gateway", "task3_pii_guardrail"]
 
 [tool.uv]
 # Supply-chain cooldown: never resolve a package version published in the last week.
@@ -57,12 +58,12 @@ select = ["E", "F", "I", "B", "UP", "S", "SIM", "ASYNC", "BLE", "DTZ", "PT", "RU
 
 [tool.mypy]
 strict = true
-files = ["shared", "task1_mcp_server", "task2_mcp_gateway", "mocks", "tests"]
+files = ["shared", "task1_mcp_server", "task2_mcp_gateway", "task3_pii_guardrail", "mocks", "tests"]
 explicit_package_bases = true
 
 [tool.coverage.run]
 branch = true
-source = ["shared", "task1_mcp_server", "task2_mcp_gateway"]
+source = ["shared", "task1_mcp_server", "task2_mcp_gateway", "task3_pii_guardrail"]
 # Measure the servers that tests start as separate processes, too.
 patch = ["subprocess"]
 # Servers stopped with SIGTERM still save their coverage data.
@@ -81,21 +82,21 @@ testpaths = ["tests"]
 addopts = "-ra --import-mode=importlib"
 
 [tool.importlinter]
-root_packages = ["shared", "task1_mcp_server", "task2_mcp_gateway", "mocks"]
+root_packages = ["shared", "task1_mcp_server", "task2_mcp_gateway", "task3_pii_guardrail", "mocks"]
 
 [[tool.importlinter.contracts]]
 name = "Tasks never import each other"
 type = "independence"
-modules = ["task1_mcp_server", "task2_mcp_gateway"]
+modules = ["task1_mcp_server", "task2_mcp_gateway", "task3_pii_guardrail"]
 
 [[tool.importlinter.contracts]]
 name = "The shared kit imports no task and no mock"
 type = "forbidden"
 source_modules = ["shared"]
-forbidden_modules = ["task1_mcp_server", "task2_mcp_gateway", "mocks"]
+forbidden_modules = ["task1_mcp_server", "task2_mcp_gateway", "task3_pii_guardrail", "mocks"]
 
 [[tool.importlinter.contracts]]
 name = "Product code never imports the mocks"
 type = "forbidden"
-source_modules = ["task1_mcp_server", "task2_mcp_gateway"]
+source_modules = ["task1_mcp_server", "task2_mcp_gateway", "task3_pii_guardrail"]
 forbidden_modules = ["mocks"]
