@@ -157,3 +157,28 @@ def test_tool_definitions() -> None:
     assert lookup.annotations.read_only_hint is True
     assert lookup.input_schema["required"] == ["customer_id"]
     assert lookup.output_schema is not None
+
+
+def test_concurrent_refunds_cannot_overspend(store: CustomerStore) -> None:
+    """Fifty threads each try to refund 10.00 from a 120.00 balance: exactly 12 succeed."""
+    import threading
+
+    results: list[bool] = []
+    record = threading.Lock()
+    start = threading.Barrier(50)
+
+    def attempt() -> None:
+        start.wait()
+        result = call_tool(
+            "trigger_refund", {"customer_id": "CUST-10001", "amount": 10, "reason": REASON}, store
+        )
+        with record:
+            results.append(not result.is_error)
+
+    threads = [threading.Thread(target=attempt) for _ in range(50)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert results.count(True) == 12
+    assert store.balance("CUST-10001") == Decimal("0.00")

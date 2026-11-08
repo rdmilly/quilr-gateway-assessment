@@ -13,6 +13,8 @@ Four parts, each runnable on its own:
 
 Targets MCP specification 2026-07-28, and still accepts 2025-11-25 clients.
 
+Design record: [decisions](docs/DECISIONS.md), [threat model](docs/THREAT-MODEL.md), [build log](docs/BUILD-LOG.md).
+
 ## Run the checks
 
 Needs Python 3.12 to 3.14 and [uv](https://docs.astral.sh/uv/). Python 3.15 is excluded for now because pytest and mypy don't run on it yet (November 2026).

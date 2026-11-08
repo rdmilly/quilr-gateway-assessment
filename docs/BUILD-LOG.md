@@ -17,4 +17,4 @@ Found by testing the real process, and fixed in `transport.py`:
 - An unflushed `print()` reached the real stdout at exit, after the SDK restored it. `sys.stdout` now points at stderr while serving.
 - A request with `"id": null` (or an object, array, boolean or fraction) was read as a notification and got no reply. Raw lines are now screened first, and such requests get `-32600`.
 
-CI now also runs the gate on macOS and Windows (Python 3.14).
+CI now also runs the gate on macOS and Windows (Python 3.14); all 226 tests, including the real-process stdio tests, pass on both on the first run.
