@@ -201,3 +201,24 @@ async def test_official_sdk_client_over_stdio(mode: str) -> None:
         with pytest.raises(MCPError) as exc:
             await client.call_tool("trigger_refund", {"customer_id": "CUST-10001"})
         assert exc.value.error.code == -32602
+
+
+@pytest.mark.parametrize("bad_id", [None, {"a": 1}, [1], True, 1.5])
+def test_request_with_invalid_id_gets_invalid_request(bad_id: object) -> None:
+    request = {
+        "jsonrpc": "2.0",
+        "id": bad_id,
+        "method": "tools/list",
+        "params": {"_meta": META},
+    }
+    proc = run(
+        [request, call(2, "get_customer_record", {"customer_id": "CUST-00042"}, modern=True)]
+    )
+    assert proc.returncode == 0, proc.stderr
+    messages = stdout_messages(proc)
+    assert messages[0] == {
+        "jsonrpc": "2.0",
+        "id": None,
+        "error": {"code": -32600, "message": "Invalid Request"},
+    }
+    assert messages[1]["id"] == 2

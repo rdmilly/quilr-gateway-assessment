@@ -14,6 +14,16 @@ JSON-RPC 2.0 says the server must reply. This layer replies with:
 
 Blank lines are skipped. Neither reply repeats what the client sent.
 
+**Requests with an invalid id get an answer too.** MCP says a request id is a
+string or an integer and never ``null``. The SDK reads a message with
+``"id": null`` (or an object, array, boolean or fraction) as a notification,
+drops the id, and so never replies. ``checked_lines`` looks at each raw line
+before the SDK does and swaps such a request for one the SDK will reject, which
+then gets ``-32600`` like any other invalid request. Because this passes the SDK
+an explicit input stream, the SDK no longer points descriptor 0 at the null
+device while serving; that only matters to a tool that starts a child process
+reading stdin, and these tools start none.
+
 **Requests already received get answered before exit.** When stdin closes, the
 SDK stops the server straight away and any request still being handled never
 gets its response. That bites the most common way to try a stdio server::
@@ -27,8 +37,11 @@ input on to the server once every request has been answered, or once
 
 from __future__ import annotations
 
+import json
 import logging
-from typing import Any
+import sys
+from collections.abc import AsyncIterator
+from typing import Any, cast
 
 import anyio
 from anyio.abc import ObjectReceiveStream, ObjectSendStream
@@ -41,6 +54,10 @@ from shared.errors import INVALID_REQUEST, PARSE_ERROR
 from shared.logs import log_event
 
 DRAIN_TIMEOUT_S = 10.0
+
+# Valid JSON that is not a JSON-RPC message, so the SDK rejects it and
+# ``error_reply_for`` answers -32600 with no id.
+INVALID_ID_PLACEHOLDER = '{"jsonrpc": "2.0", "invalid_request_id": true}\n'
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +98,50 @@ def _recover_id(exc: ValidationError) -> types.RequestId | None:
                 return request_id
             return None
     return None
+
+
+def _is_valid_request_id(value: object) -> bool:
+    return isinstance(value, str) or (isinstance(value, int) and not isinstance(value, bool))
+
+
+def screen_line(line: str) -> str:
+    """Return the line unchanged, or a placeholder if it is a request with an invalid id."""
+    if '"id"' not in line:  # cheap check first: most lines are not affected
+        return line
+    try:
+        message = json.loads(line)
+    except ValueError:
+        return line  # not JSON: the SDK reports it, and we answer -32700
+    if (
+        isinstance(message, dict)
+        and "method" in message
+        and "id" in message
+        and not _is_valid_request_id(message["id"])
+    ):
+        log_event(logger, logging.INFO, "request with invalid id")
+        return INVALID_ID_PLACEHOLDER
+    return line
+
+
+class _CheckedLines:
+    """A line source for ``stdio_server`` that runs every line through ``screen_line``."""
+
+    def __init__(self, source: Any) -> None:
+        self._source = source
+
+    def __aiter__(self) -> AsyncIterator[str]:
+        return self._lines()
+
+    async def _lines(self) -> AsyncIterator[str]:
+        async for line in self._source:
+            yield screen_line(line)
+
+
+def checked_stdin() -> anyio.AsyncFile[str]:
+    """Stdin as UTF-8 text (bad bytes become U+FFFD, as in the SDK), screened line by line."""
+    sys.stdin.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
+    # stdio_server only iterates over the lines, so this small wrapper is all it needs.
+    return cast("anyio.AsyncFile[str]", _CheckedLines(anyio.wrap_file(sys.stdin)))
 
 
 def error_reply_for(exc: Exception) -> SessionMessage | None:

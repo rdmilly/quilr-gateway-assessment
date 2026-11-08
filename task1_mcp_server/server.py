@@ -39,7 +39,7 @@ from shared.logs import configure_logging, log_event
 from . import __version__
 from .customers import CustomerStore
 from .tools import TOOLS, call_tool
-from .transport import serve_draining
+from .transport import checked_stdin, serve_draining
 
 SERVER_NAME = "quilr-customer-service"
 
@@ -83,7 +83,7 @@ def stdout_goes_to_stderr() -> Iterator[None]:
 
 async def serve_stdio(server: Server[Any]) -> None:
     """Serve until stdin closes, answer what is still in flight, then return."""
-    async with stdio_server() as (read_stream, write_stream):
+    async with stdio_server(stdin=checked_stdin()) as (read_stream, write_stream):
         with stdout_goes_to_stderr():
             await serve_draining(server, read_stream, write_stream)
 

@@ -7,7 +7,12 @@ from mcp.server import Server
 from mcp.shared.message import SessionMessage
 from pydantic import ValidationError
 
-from task1_mcp_server.transport import error_reply_for, serve_draining
+from task1_mcp_server.transport import (
+    INVALID_ID_PLACEHOLDER,
+    error_reply_for,
+    screen_line,
+    serve_draining,
+)
 
 META = {
     "io.modelcontextprotocol/protocolVersion": "2026-07-28",
@@ -112,3 +117,34 @@ def test_other_exceptions_are_invalid_request() -> None:
     assert reply is not None
     assert isinstance(reply.message, types.JSONRPCError)
     assert reply.message.error.code == -32600
+
+
+# --- requests whose id is not a string or an integer ------------------------
+
+
+@pytest.mark.parametrize("bad_id", ["null", '{"a": 1}', "[1]", "true", "false", "1.5"])
+def test_request_with_invalid_id_is_swapped_for_an_invalid_message(bad_id: str) -> None:
+    line = '{"jsonrpc":"2.0","id":' + bad_id + ',"method":"tools/list"}\n'
+    assert screen_line(line) == INVALID_ID_PLACEHOLDER
+    reply = error_reply_for(unreadable(INVALID_ID_PLACEHOLDER))
+    assert reply is not None
+    assert isinstance(reply.message, types.JSONRPCError)
+    assert reply.message.error.code == -32600
+    assert reply.message.id is None
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        '{"jsonrpc":"2.0","id":1,"method":"tools/list"}\n',
+        '{"jsonrpc":"2.0","id":"abc","method":"tools/list"}\n',
+        '{"jsonrpc":"2.0","id":0,"method":"tools/list"}\n',
+        '{"jsonrpc":"2.0","method":"notifications/initialized"}\n',  # no id: a notification
+        '{"jsonrpc":"2.0","id":null,"result":{}}\n',  # a response, not a request
+        '{"jsonrpc":"2.0","method":"x","params":{"note":"says \\"id\\" but has none"}}\n',
+        '{not json, mentions "id"\n',  # left for the SDK, which reports a parse error
+        '["id"]\n',
+    ],
+)
+def test_other_lines_pass_through_unchanged(line: str) -> None:
+    assert screen_line(line) == line

@@ -14,11 +14,23 @@ env:
 
 jobs:
   gate:
-    runs-on: ubuntu-latest
+    name: gate (${{ matrix.os }}, ${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        # Every supported Python on Linux; the newest on macOS and Windows,
+        # since a reviewer may run this on either.
+        os: [ubuntu-latest]
         python: ["3.12", "3.13", "3.14"]
+        include:
+          - os: macos-latest
+            python: "3.14"
+          - os: windows-latest
+            python: "3.14"
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
