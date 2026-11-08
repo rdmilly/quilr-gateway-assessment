@@ -6,7 +6,7 @@ Four parts, each runnable on its own:
 
 | Task | What it is | Folder | Status |
 | --- | --- | --- | --- |
-| 1 | MCP server with strict input validation over stdio | `task1_mcp_server/` | Not started |
+| 1 | MCP server with strict input validation over stdio | [`task1_mcp_server/`](task1_mcp_server/README.md) | Done |
 | 2 | MCP security gateway: bearer token roles, admin tool blocking | `task2_mcp_gateway/` | Not started |
 | 3 | LLM gateway with streaming PII redaction | `task3_pii_guardrail/` | Not started |
 | 4 | Token rate limiter and model failover router | `task4_rate_limit_failover/` | Not started |
@@ -21,3 +21,5 @@ Needs Python 3.12 to 3.14 and [uv](https://docs.astral.sh/uv/). Python 3.15 is e
 uv sync
 ./check.sh
 ```
+
+Run the Task 1 server: `uv run python -m task1_mcp_server`.
