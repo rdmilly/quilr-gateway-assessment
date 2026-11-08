@@ -18,3 +18,16 @@ Found by testing the real process, and fixed in `transport.py`:
 - A request with `"id": null` (or an object, array, boolean or fraction) was read as a notification and got no reply. Raw lines are now screened first, and such requests get `-32600`.
 
 CI now also runs the gate on macOS and Windows (Python 3.14); all 226 tests, including the real-process stdio tests, pass on both on the first run.
+
+## 3. Task 2: MCP gateway (`task2_mcp_gateway/`, `mocks/mcp_server.py`)
+
+Bearer token to role, strict single JSON-RPC parse forwarded as parsed, `admin_` tools refused with `-32001` for non-admins without contacting the server, routing headers checked against the body, Origin check, size limits, no token passthrough, one fixed downstream, OCSF audit per tool call decision. The mock downstream is a real SDK server over Streamable HTTP. Tested with raw HTTP, with the official SDK client on both protocol versions over SSE and JSON, and as real processes on real ports.
+
+Found while building:
+
+- The SDK client turns any non-2xx reply into a generic error, so `-32001` must travel with HTTP 200 for clients to see it.
+- The SDK's HTTP server checks the Host header (DNS rebinding protection); the mock allows localhost names explicitly.
+- The SDK app's lifespan must start and stop in one async task; the test fixture holds it in a background task.
+- Escapes such as `\u200b` typed into remote commands arrived as the literal invisible characters. All test files were scanned and invisible or look-alike characters restored to escapes.
+
+`import-linter` now enforces that tasks never import each other, the shared kit imports no task, and product code never imports the mocks.

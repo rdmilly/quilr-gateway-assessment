@@ -138,7 +138,7 @@ Every choice where a reasonable person could have gone another way: what we chos
 - **Instead of:** Building it now.
 - **Why:** Not in the brief, and three tasks remain. It touches only Task 1 files, so later costs the same as now.
 
-## Task 2 (planned)
+## Task 2
 
 ### D5. Unauthorized tool call is -32001
 
@@ -169,6 +169,42 @@ Every choice where a reasonable person could have gone another way: what we chos
 - **Chose:** Mismatch is HTTP 400 with -32020 on the 2026-07-28 path.
 - **Instead of:** Trusting headers or ignoring them.
 - **Why:** Required by the current spec so gateways can route on headers safely.
+
+### T2-D7. Missing token is HTTP 401 with code -31001
+
+- **Chose:** 401 with `WWW-Authenticate: Bearer`, body code -31001, checked before the body is read.
+- **Instead of:** Reusing -32001, or a code inside the JSON-RPC reserved range.
+- **Why:** Authentication and authorization are different failures. MCP asks for new application codes outside -32768 to -32000; the 401 is what clients act on.
+
+### T2-D8. A denied tool call is HTTP 200 with a JSON-RPC error
+
+- **Chose:** 200 and `{"error":{"code":-32001,...}}`.
+- **Instead of:** HTTP 403.
+- **Why:** Found by test: the official SDK client turns any non-2xx response into a generic transport error, so with 403 the client never sees -32001. 200 is how an MCP server answers a request it refuses.
+
+### T2-D9. tools/list forwarded unfiltered
+
+- **Chose:** Forward exactly as the brief says; viewers see admin tools but cannot call them.
+- **Instead of:** Hiding admin tools from viewers.
+- **Why:** The brief asks for transparency. Filtering is a reasonable production option and is noted in the README.
+
+### T2-D10. httpx2 and Starlette, not httpx and FastAPI
+
+- **Chose:** httpx2 (the HTTP client the MCP SDK itself uses) and plain Starlette.
+- **Instead of:** httpx plus FastAPI.
+- **Why:** One HTTP client library instead of two, and no auto-generated docs endpoints adding surface. The gateway has one route.
+
+### T2-D11. The mock is a real MCP server
+
+- **Chose:** The official SDK's Streamable HTTP server with one ordinary and one admin tool, answering over SSE or JSON.
+- **Instead of:** A hand-written fake that returns canned JSON.
+- **Why:** Tests then prove the gateway works with real MCP traffic on both protocol versions, including streamed replies.
+
+### T2-D12. Denied notifications are dropped
+
+- **Chose:** A tools/call notification for an admin tool gets 202 like any notification, and is not forwarded.
+- **Instead of:** Forwarding notifications unchecked.
+- **Why:** Otherwise a caller could trigger an admin tool by leaving out the id.
 
 ## Task 3 (planned)
 

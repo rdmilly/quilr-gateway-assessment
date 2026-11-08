@@ -44,17 +44,23 @@ Threats tracked per component and trust boundary (B1 to B9). Status: **defended 
 | An agent retries trigger_refund and pays twice | task1 | ASI02 tool misuse, unsafe tool execution | Tool is annotated destructive and not idempotent so clients should confirm. An idempotency key would stop the duplicate; see DECISIONS.md D16. | test_tools.py::test_tool_definitions (annotations only) | open |
 | Anyone who can start the server can call it | task1, B6 | Authentication | By design. Over stdio only the parent process can talk to the server, and the spec says stdio servers take credentials from the environment, not the HTTP auth flow. Authentication lives in the Task 2 gateway. | MCP 2026-07-28, Auth section | open |
 
-## Task 2 (planned)
+## Task 2
 
 | Threat | Where | Class | Defense | Proof | Status |
 | --- | --- | --- | --- | --- | --- |
-| Admin tool reached by name tricks | policy, B1 | ASI03 privilege abuse | Normalize the tool name (NFKC, trim, lower case) before the admin_ prefix check, so Admin_, a full-width letter or a zero-width space cannot slip past. | planned | planned |
-| Gateway and server read the same message differently | parser, B1 | Parser differential | Reject duplicate keys and batches, then forward the message re-serialized from what the gateway parsed, never the raw bytes. | planned | planned |
-| Admin call smuggled as a notification | policy | Authorization bypass | Authorize tools/call notifications too, and drop them if denied. | planned | planned |
-| Caller's token passed through to the downstream server | proxy, B2 | MCP token passthrough, confused deputy | Strip the caller's Authorization header; send the verified subject and role in gateway headers instead. | planned | planned |
-| Caller steers the gateway to another host | proxy, B2 | SSRF | One fixed downstream URL from config; nothing in the request can change it. | planned | planned |
-| Headers say one tool, body says another | http, B1 | Request smuggling | On the 2026-07-28 path, Mcp-Method and Mcp-Name must match the body, otherwise HTTP 400 and -32020. | planned | planned |
-| Huge or slow request ties up the gateway | http, B1 | LLM10 unbounded consumption | Body size limit and timeouts before parsing. | planned | planned |
+| Admin tool reached by name tricks | policy, B1 | ASI03 privilege abuse | Normalize the tool name (NFKC, trim, lower case) before the admin_ prefix check, so Admin_, a full-width letter or a zero-width space cannot slip past. | test_gateway.py::test_disguised_admin_tool_names_are_still_refused, test_rules.py::test_admin_tool_detection (+ property tests) | defended + tested |
+| Gateway and server read the same message differently | parser, B1 | Parser differential | Reject duplicate keys and batches, then forward the message re-serialized from what the gateway parsed, never the raw bytes. | test_gateway.py::test_unreadable_bodies_are_refused_before_policy (duplicate keys, batches, NaN), test_rules.py::test_invalid_messages | defended + tested |
+| Admin call smuggled as a notification | policy | Authorization bypass | Authorize tools/call notifications too, and drop them if denied. | test_gateway.py::test_denied_tool_call_notification_is_dropped | defended + tested |
+| Caller's token passed through to the downstream server | proxy, B2 | MCP token passthrough, confused deputy | Strip the caller's Authorization header; send the verified subject and role in gateway headers instead. | test_gateway.py::test_caller_token_is_not_passed_downstream | defended + tested |
+| Caller steers the gateway to another host | proxy, B2 | SSRF | One fixed downstream URL from config; nothing in the request can change it. | Downstream URL only from config (settings.py); test_gateway.py::test_downstream_url_must_be_http_with_a_host | defended + tested |
+| Headers say one tool, body says another | http, B1 | Request smuggling | On the 2026-07-28 path, Mcp-Method and Mcp-Name must match the body, otherwise HTTP 400 and -32020. | test_gateway.py::test_header_that_disagrees_with_body_is_refused, ::test_method_header_that_disagrees_is_refused | defended + tested |
+| Huge or slow request ties up the gateway | http, B1 | LLM10 unbounded consumption | Body size limit (Content-Length checked first, then counted while reading) and an upstream timeout. | test_gateway.py::test_oversized_body_is_413, ::test_chunked_body_over_the_limit_is_cut_off, ::test_downstream_failure_is_a_clean_error | defended + tested |
+| Caller without a valid token reaches the server | http, identity, B1 | Authentication | Bearer token checked before the body is read; 401 otherwise. | test_gateway.py::test_missing_or_bad_token_is_401_and_nothing_is_forwarded | defended + tested |
+| Browser page drives a local gateway (DNS rebinding) | http, B1 | Cross-origin abuse | Requests carrying an Origin not on the allow list get 403; Origin is not forwarded. | test_gateway.py::test_unknown_origin_is_403_and_allowed_origin_passes | defended + tested |
+| Upstream failure leaks internals | proxy, B2 | Information disclosure | Fixed messages with 502 or 504 and the caller's id; exception text never returned. | test_gateway.py::test_downstream_failure_is_a_clean_error | defended + tested |
+| Tool call decisions cannot be reviewed later | audit | Repudiation | One hash-chained OCSF record per allowed or denied tools/call, with subject, role and tool, never arguments. | test_gateway.py::test_every_tool_call_decision_is_audited | defended + tested |
+| Viewer learns admin tool names from tools/list | proxy | Information disclosure | Accepted: the brief asks for transparent forwarding. Filtering is a production option (DECISIONS.md T2-D9). | test_gateway.py::test_tools_list_is_forwarded_transparently | open |
+| Gateway identity headers forged by someone who can reach the server directly | B2 | Spoofing | The server must only be reachable from the gateway (private network or mTLS). Not enforceable from the gateway; documented. | README, Decisions worth knowing | open |
 
 ## Task 3 (planned)
 

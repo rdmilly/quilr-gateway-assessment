@@ -11,6 +11,7 @@ step "lock file matches pyproject"; uv lock --check
 step "lint (incl. security rules)"; uv run ruff check .
 step "format";                      uv run ruff format --check .
 step "types";                       uv run mypy
+step "architecture (import rules)"; uv run lint-imports
 step "tests + branch coverage";     uv run pytest -q --cov --cov-report=term
 
 if [[ "${1:-}" != "--ci" ]]; then

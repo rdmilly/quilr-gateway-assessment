@@ -151,7 +151,7 @@ def test_any_whole_number_of_cents_is_accepted(cents: int) -> None:
         GOOD_REASON,
         "  padded but still long enough  ",
         "Remboursement: colis endommagé",  # accented text is fine
-        "退款原因：商品在运输中损坏了",  # so is any script  # noqa: RUF001
+        "退款原因\uff1a商品在运输中损坏了",  # so is any script
         "x" * 500,
     ],
 )
@@ -169,11 +169,11 @@ def test_valid_reasons(reason: str) -> None:
         ("x" * 501, "string_too_long"),
         ("valid text\x00here", "value_error"),  # NUL
         ("valid text\x1b[31m", "value_error"),  # terminal escape
-        ("abcdefghij​", "value_error"),  # zero-width space
-        ("​" * 12, "value_error"),
-        ("refund for ‮evil", "value_error"),  # right-to-left override
+        ("abcdefghij\u200b", "value_error"),  # zero-width space
+        ("\u200b" * 12, "value_error"),
+        ("refund for \u202eevil", "value_error"),  # right-to-left override
         ("lone \ud800 surrogate", "string_unicode"),  # Pydantic refuses these itself
-        ("private use ", "value_error"),
+        ("private use \ue000\ue000", "value_error"),
         (1234567890, "string_type"),
         (None, "string_type"),
     ],

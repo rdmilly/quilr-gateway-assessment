@@ -7,7 +7,7 @@ Four parts, each runnable on its own:
 | Task | What it is | Folder | Status |
 | --- | --- | --- | --- |
 | 1 | MCP server with strict input validation over stdio | [`task1_mcp_server/`](task1_mcp_server/README.md) | Done |
-| 2 | MCP security gateway: bearer token roles, admin tool blocking | `task2_mcp_gateway/` | Not started |
+| 2 | MCP security gateway: bearer token roles, admin tool blocking | [`task2_mcp_gateway/`](task2_mcp_gateway/README.md) | Done |
 | 3 | LLM gateway with streaming PII redaction | `task3_pii_guardrail/` | Not started |
 | 4 | Token rate limiter and model failover router | `task4_rate_limit_failover/` | Not started |
 
@@ -24,4 +24,4 @@ uv sync
 ./check.sh
 ```
 
-Run the Task 1 server: `uv run python -m task1_mcp_server`.
+Run the Task 1 server: `uv run python -m task1_mcp_server`. Run Task 2: see [its README](task2_mcp_gateway/README.md).

@@ -11,9 +11,9 @@ extra stays off by default and is listed in the README's deviations table with t
 
 - `shared/`: errors, logging, configuration and auth used by every task. Imports nothing from a task.
 - `taskN_*/`: one folder per task, each with its own README. Tasks never import each other
-  (enforced by import-linter once a second task exists).
+  (enforced by import-linter).
 - `tests/taskN/`: that task's tests. `tests/shared/` covers `shared/`.
-- `mocks/`: stand-ins for tests and demos, never product code.
+- `mocks/`: stand-ins for tests and demos, never product code (enforced by import-linter).
 - `gateway/main.py`: wiring only, no logic.
 
 ## Code

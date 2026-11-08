@@ -10,7 +10,7 @@ dependencies = [
     "mcp==2.3.0",
     "fastapi>=0.150,<0.163",
     "uvicorn>=0.50,<0.55",
-    "httpx==0.28.1",
+    "httpx2==2.16.0",
     "pydantic>=2.11,<3",
     "regex",
     "aiosqlite==0.22.1",
@@ -35,7 +35,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["shared", "task1_mcp_server"]
+packages = ["shared", "task1_mcp_server", "task2_mcp_gateway"]
 
 [tool.uv]
 # Supply-chain cooldown: never resolve a package version published in the last week.
@@ -56,13 +56,16 @@ select = ["E", "F", "I", "B", "UP", "S", "SIM", "ASYNC", "BLE", "DTZ", "PT", "RU
 
 [tool.mypy]
 strict = true
-files = ["shared", "task1_mcp_server", "tests"]
+files = ["shared", "task1_mcp_server", "task2_mcp_gateway", "mocks", "tests"]
+explicit_package_bases = true
 
 [tool.coverage.run]
 branch = true
-source = ["shared", "task1_mcp_server"]
+source = ["shared", "task1_mcp_server", "task2_mcp_gateway"]
 # Measure the servers that tests start as separate processes, too.
 patch = ["subprocess"]
+# Servers stopped with SIGTERM still save their coverage data.
+sigterm = true
 
 [tool.coverage.report]
 fail_under = 90
@@ -75,3 +78,23 @@ asyncio_default_fixture_loop_scope = "function"
 pythonpath = ["."]
 testpaths = ["tests"]
 addopts = "-ra --import-mode=importlib"
+
+[tool.importlinter]
+root_packages = ["shared", "task1_mcp_server", "task2_mcp_gateway", "mocks"]
+
+[[tool.importlinter.contracts]]
+name = "Tasks never import each other"
+type = "independence"
+modules = ["task1_mcp_server", "task2_mcp_gateway"]
+
+[[tool.importlinter.contracts]]
+name = "The shared kit imports no task and no mock"
+type = "forbidden"
+source_modules = ["shared"]
+forbidden_modules = ["task1_mcp_server", "task2_mcp_gateway", "mocks"]
+
+[[tool.importlinter.contracts]]
+name = "Product code never imports the mocks"
+type = "forbidden"
+source_modules = ["task1_mcp_server", "task2_mcp_gateway"]
+forbidden_modules = ["mocks"]
