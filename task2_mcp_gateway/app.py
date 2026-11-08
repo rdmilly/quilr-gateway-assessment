@@ -6,8 +6,9 @@
 3. **Is it JSON.** Wrong content type: 415. Body over the limit: 413.
 4. **Parse once.** Not exactly one JSON-RPC message: 400 with -32700 or -32600.
 5. **Routing headers** present and equal to the body (2026-07-28): otherwise 400 with -32020.
-6. **Policy.** ``tools/call`` on an ``admin_`` tool without the admin role:
-   ``-32001 Unauthorized Tool Call``, and the downstream server is never contacted.
+6. **Policy.** A tool name outside the MCP character set: ``-32602``. ``tools/call``
+   on an ``admin_`` tool without the admin role: ``-32001 Unauthorized Tool Call``.
+   Either way the downstream server is never contacted.
 7. **Forward** the parsed message to the one downstream server; stream its reply back.
 
 Every tool call decision, allowed or denied, is written to the audit log.
@@ -38,7 +39,6 @@ from shared.errors import (
     HEADER_MISMATCH,
     INTERNAL_ERROR,
     INVALID_REQUEST,
-    UNAUTHORIZED_TOOL_CALL,
     JsonRpcId,
     jsonrpc_error,
     new_request_id,
@@ -210,10 +210,10 @@ def create_app(
             )
             if message.kind is Kind.NOTIFICATION:
                 # A notification the server cannot accept gets an HTTP error status, never 202.
-                return _error_without_id(403, UNAUTHORIZED_TOOL_CALL, "Unauthorized Tool Call")
+                return _error_without_id(403, verdict.code, verdict.message)
             # Exactly the error the brief names: code and message, nothing more. Which tool
             # and which role are in the log and the audit record, not in the reply.
-            return _error(200, message.id, UNAUTHORIZED_TOOL_CALL, "Unauthorized Tool Call")
+            return _error(200, message.id, verdict.code, verdict.message)
 
         try:
             upstream = await state["downstream"].send(

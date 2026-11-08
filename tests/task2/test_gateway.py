@@ -72,20 +72,33 @@ async def test_admin_can_call_an_admin_tool(rig: Rig) -> None:
     assert reply(response)["result"]["content"][0]["text"].startswith("admin_reset_key ran")
 
 
+@pytest.mark.parametrize("name", ["Admin_reset_key", "ADMIN_RESET_KEY", "aDmIn_x"])
+async def test_admin_tool_check_ignores_case(rig: Rig, name: str) -> None:
+    response = await post(rig, call(5, name))
+    assert response.json()["error"]["code"] == -32001
+    assert rig.seen == []
+
+
 @pytest.mark.parametrize(
     "name",
     [
-        "Admin_reset_key",
-        "ADMIN_RESET_KEY",
-        " admin_reset_key",
+        " admin_reset_key",  # leading space
         "\u200badmin_reset_key",  # zero-width space in front
         "admin\u200b_reset_key",  # zero-width space inside
         "\uff41dmin_reset_key",  # full-width a
+        "\u0430dmin_reset_key",  # Cyrillic a, looks identical to Latin a
+        "lookup order",  # a space
+        "x" * 129,  # too long
+        "",
     ],
 )
-async def test_disguised_admin_tool_names_are_still_refused(rig: Rig, name: str) -> None:
-    response = await post(rig, call(5, name))
-    assert response.json()["error"]["code"] == -32001
+async def test_names_outside_the_mcp_character_set_are_refused(rig: Rig, name: str) -> None:
+    response = await post(rig, call(5, name), as_role="admin")  # even for admins
+    assert response.status_code == 200
+    assert response.json()["error"] == {
+        "code": -32602,
+        "message": "Invalid params: tool names use only A-Z a-z 0-9 _ - . /",
+    }
     assert rig.seen == []
 
 

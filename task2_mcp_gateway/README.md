@@ -56,6 +56,7 @@ Every request takes the same path through `app.py`, in this order. Each check ru
 | Not `application/json`, or body over 1 MiB | HTTP 415 / 413 | Bounded work per request. |
 | Not exactly one JSON-RPC message | HTTP 400, `-32700` or `-32600` | See "One message, read strictly" below. |
 | 2026-07-28 routing headers (`MCP-Protocol-Version`, `Mcp-Method`, `Mcp-Name`) missing, malformed, or different from the body | HTTP 400, `-32020` | Required by MCP 2026-07-28, so nothing in the path can route on one value while the server acts on another. Older protocol versions did not define these headers, so for them only headers that are present are checked. |
+| Tool name outside the MCP character set | HTTP 200, `-32602` | SEP-986: tool names use only ASCII letters, digits, `_ - . /`. Closes every look-alike trick. |
 | `tools/call` on an `admin_` tool, role is not admin | HTTP 200, `-32001` | The brief's rule. The server is never contacted. |
 | Downstream unreachable or too slow | HTTP 502 / 504, `-32603` | Fixed message; no upstream details leak. |
 
@@ -69,7 +70,7 @@ Otherwise the parsed message is forwarded and the server's reply, JSON or a serv
 
 **Missing token is HTTP 401 with code `-31001`.** The 401 is what clients act on. For the body, MCP asks for new application error codes outside the reserved range (`-32768` to `-32000`), so `-31001` sits just outside it, and it is not confused with the authorization error `-32001`.
 
-**The admin check runs on a canonical name.** NFKC normalization, invisible (format) characters removed, trimmed, case-folded. So `Admin_reset_key`, a full-width `a`, a soft hyphen or a zero-width space cannot slip past. `administrator_report` and `my_admin_tool` are not blocked: the rule is "starts with `admin_`".
+**Tool names are checked in two steps.** First the name must use only the characters MCP allows for tool names (SEP-986): ASCII letters, digits, `_`, `-`, `.` and `/`, at most 128 of them. Anything else is refused with `-32602`, so a Cyrillic letter that looks Latin, a full-width letter, a zero-width space or a leading space never reaches the admin check. Then, if the name starts with `admin_` in any letter case, the caller must be an admin. MCP tool names are case-sensitive, so ignoring case can over-block a tool named, say, `Admin_report`; that is deliberate, in case a server matches names without regard to case. `administrator_report` and `my_admin_tool` are not blocked: the rule is "starts with `admin_`".
 
 **One message, read strictly, forwarded as parsed.** The gateway decides on what it parsed and forwards that, re-serialized, never the original bytes. Anything two JSON parsers might read differently is refused, so the gateway and the server cannot disagree about which tool is being called:
 
