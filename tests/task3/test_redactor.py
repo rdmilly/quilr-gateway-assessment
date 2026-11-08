@@ -97,3 +97,11 @@ def test_pii_at_the_very_end_is_redacted_on_finish(ending: str) -> None:
     redactor = StreamRedactor()
     out = redactor.feed("value: ") + redactor.feed(ending) + redactor.finish()
     assert out == "value: [REDACTED]"
+
+
+def test_benchmark_runs_and_reports() -> None:
+    from task3_pii_guardrail.bench import run
+
+    result = run(repeats=5)
+    assert result["redactions"] == 15
+    assert result["max_chars_held"] <= MAX_MATCH_CHARS
