@@ -182,6 +182,12 @@ Every choice where a reasonable person could have gone another way: what we chos
 - **Instead of:** Unicode normalization (NFKC) before the prefix check.
 - **Why:** NFKC does not turn a Cyrillic a into a Latin one, so look-alikes survived. One character-set rule closes them all and is easier to explain. Ignoring case over-blocks a tool named like Admin_report; accepted as defense in depth.
 
+### T2-D15. Optional JWT mode with audience binding
+
+- **Chose:** Off by default. When on, accept HS256 JWTs whose issuer and audience match config exactly, with exp, iat and sub required and the role taken from a claim; algorithm pinned; secret from an environment variable, at least 32 bytes.
+- **Instead of:** Static tokens only; or trusting a role claim without checking the audience.
+- **Why:** "Extract the user's role" can also mean reading it from the token. The audience check is how a resource server refuses tokens issued for other services (MCP authorization, RFC 8707). Production would use the identity provider's public keys rather than a shared secret.
+
 ### T2-D7. Missing token is HTTP 401 with code -31001
 
 - **Chose:** 401 with `WWW-Authenticate: Bearer`, body code -31001, checked before the body is read.

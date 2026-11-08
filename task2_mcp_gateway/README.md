@@ -102,6 +102,8 @@ The brief asks the gateway to read a bearer token and take the caller's role fro
 
 Only `shared/auth.py`'s `Authenticator` changes: it returns the same `Identity(subject, role)`, so the policy, the proxy and the audit trail stay as they are.
 
+A first step toward that is already here, off by default: **JWT mode** (`[auth.jwt]` in `config.example.toml`). With it on, the gateway also accepts signed JWTs carrying a `role` claim. A JWT gets in only if its HS256 signature is valid, it is unexpired, and its issuer and audience are exactly the configured ones. The audience check is the point: a token the same identity provider issued for some other service is refused, which is the "no token passthrough" rule from the receiving side. The algorithm is pinned (`alg: none` and algorithm swaps are refused), and the signing secret comes from the `GATEWAY_JWT_SECRET` environment variable, never from the config file. Production would verify the identity provider's public keys (RS256 or ES256 from its JWKS) instead of a shared secret.
+
 ## Tests
 
 `tests/task2/`:

@@ -412,3 +412,60 @@ async def test_streamed_replies_tell_proxies_not_to_buffer(rig: Rig) -> None:
         assert response.headers["x-accel-buffering"] == "no"
     else:
         assert "x-accel-buffering" not in response.headers
+
+
+# --- optional JWT mode ---------------------------------------------------------
+
+
+async def test_gateway_accepts_jwts_issued_for_it_and_refuses_others() -> None:
+    import time
+
+    import jwt
+
+    from shared.auth import AuthSettings, JwtSettings
+
+    secret = "fake-gateway-signing-secret-" + "0123456789abcdef" * 3
+    auth = Authenticator(
+        AuthSettings(jwt=JwtSettings(issuer="https://idp.example", audience="mcp-gateway")),
+        environ={"GATEWAY_JWT_SECRET": secret},
+    )
+
+    def token(audience: str, role: str) -> str:
+        now = int(time.time())
+        claims = {
+            "sub": "carol",
+            "role": role,
+            "iss": "https://idp.example",
+            "aud": audience,
+            "iat": now,
+            "exp": now + 300,
+        }
+        return jwt.encode(claims, secret, algorithm="HS256")
+
+    def deny_all(request: httpx2.Request) -> httpx2.Response:
+        raise AssertionError("must not be forwarded")
+
+    app = create_app(
+        GatewaySettings(),
+        auth,
+        audit=AuditLog(),
+        client=httpx2.AsyncClient(transport=httpx2.MockTransport(deny_all)),
+    )
+    body = json.dumps(
+        {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "admin_reset_key"}}
+    )
+    async with httpx2.AsyncClient(
+        transport=httpx2.ASGITransport(app=app), base_url="http://gateway"
+    ) as gateway:
+
+        async def send(bearer: str) -> httpx2.Response:
+            return await gateway.post(
+                "/mcp",
+                content=body,
+                headers={"authorization": f"Bearer {bearer}", "content-type": "application/json"},
+            )
+
+        other_service = await send(token("some-other-service", "admin"))
+        viewer = await send(token("mcp-gateway", "viewer"))
+    assert other_service.status_code == 401  # signed by the right issuer, but not for us
+    assert viewer.json()["error"]["code"] == -32001

@@ -11,6 +11,14 @@ tokens = [
     { sha256 = "04afacc947b28c94e15578a9db68c1d1bf775b3ff82bc88e31d4465f26bc0b42", subject = "victor", role = "viewer" },
 ]
 
+# Optional: also accept signed JWTs. Each must be signed with HS256 by the secret in the
+# environment variable below, issued by `issuer`, for `audience` (this gateway), unexpired,
+# with `sub` and a `role` claim of "admin" or "viewer". Uncomment to turn on.
+# [auth.jwt]
+# issuer = "https://idp.example"
+# audience = "mcp-gateway"
+# secret_env = "GATEWAY_JWT_SECRET"
+
 [mcp_gateway]
 downstream_url = "http://127.0.0.1:9000/mcp"   # the one server the gateway forwards to
 max_body_bytes = 1048576
