@@ -211,14 +211,9 @@ def create_app(
             if message.kind is Kind.NOTIFICATION:
                 # A notification the server cannot accept gets an HTTP error status, never 202.
                 return _error_without_id(403, UNAUTHORIZED_TOOL_CALL, "Unauthorized Tool Call")
-            return _error(
-                200,
-                message.id,
-                UNAUTHORIZED_TOOL_CALL,
-                "Unauthorized Tool Call",
-                tool=verdict.tool,
-                required_role="admin",
-            )
+            # Exactly the error the brief names: code and message, nothing more. Which tool
+            # and which role are in the log and the audit record, not in the reply.
+            return _error(200, message.id, UNAUTHORIZED_TOOL_CALL, "Unauthorized Tool Call")
 
         try:
             upstream = await state["downstream"].send(

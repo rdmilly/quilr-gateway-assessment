@@ -37,7 +37,7 @@ async def test_viewer_gets_32001_from_the_sdk_client(rig: Rig, mode: str) -> Non
             await client.call_tool("admin_reset_key", {"key_id": "k1"})
     assert exc.value.error.code == -32001
     assert exc.value.error.message == "Unauthorized Tool Call"
-    assert exc.value.error.data == {"tool": "admin_reset_key", "required_role": "admin"}
+    assert exc.value.error.data is None
 
 
 @pytest.mark.parametrize("mode", MODES)

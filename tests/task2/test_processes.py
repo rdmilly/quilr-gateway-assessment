@@ -101,7 +101,6 @@ def test_gateway_and_mock_server_run_as_real_processes(running: int) -> None:
     assert tool_call("admin_reset_key", "viewer", running)["error"] == {
         "code": -32001,
         "message": "Unauthorized Tool Call",
-        "data": {"tool": "admin_reset_key", "required_role": "admin"},
     }
     allowed = tool_call("admin_reset_key", "admin", running)
     assert "result" in allowed

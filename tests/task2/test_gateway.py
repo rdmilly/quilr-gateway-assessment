@@ -62,11 +62,7 @@ async def test_viewer_calling_an_admin_tool_gets_32001_and_server_is_never_calle
     assert response.json() == {
         "jsonrpc": "2.0",
         "id": "abc",
-        "error": {
-            "code": -32001,
-            "message": "Unauthorized Tool Call",
-            "data": {"tool": "admin_reset_key", "required_role": "admin"},
-        },
+        "error": {"code": -32001, "message": "Unauthorized Tool Call"},
     }
     assert rig.seen == []
 

@@ -40,7 +40,7 @@ curl -si localhost:8080/mcp $H -d "$CALL" | head -1
 The viewer gets:
 
 ```json
-{"jsonrpc":"2.0","id":1,"error":{"code":-32001,"message":"Unauthorized Tool Call","data":{"tool":"admin_reset_key","required_role":"admin"}}}
+{"jsonrpc":"2.0","id":1,"error":{"code":-32001,"message":"Unauthorized Tool Call"}}
 ```
 
 Any MCP client works too: point it at `http://127.0.0.1:8080/mcp` with an `Authorization: Bearer ...` header. The tests drive the official Python SDK client through the gateway on both protocol versions.
@@ -63,7 +63,7 @@ Otherwise the parsed message is forwarded and the server's reply, JSON or a serv
 
 ## Decisions worth knowing
 
-**`-32001` comes back with HTTP 200.** That is how an MCP server answers a request it refuses. The official SDK client reports any non-2xx status as a generic transport error, so with a 403 the client would never see `-32001`. A test drives the SDK client through the gateway and checks the code arrives.
+**`-32001` comes back exactly as the brief names it, with HTTP 200.** The error object is `{"code": -32001, "message": "Unauthorized Tool Call"}` with the request's `id`, and nothing else; which tool and which role go to the log and the audit record. The brief does not name an HTTP status. 200 is how an MCP server answers a request it refuses, and it is the only way the error reaches every client: the official SDK client reports any non-2xx status as a generic transport error, so with a 403 it would never show `-32001`. A test drives the SDK client through the gateway and checks the code arrives. (MCP's OAuth section uses 403 for missing scopes; this role check is not OAuth scopes, see "Production auth" below.)
 
 **`-32001` is in a range the current spec discourages.** MCP 2026-07-28 says new implementations SHOULD NOT use `-32000` to `-32019`. The brief names `-32001` exactly, so the gateway uses it. In production I would use a code outside the JSON-RPC reserved range.
 
