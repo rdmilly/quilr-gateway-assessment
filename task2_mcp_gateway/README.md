@@ -91,6 +91,17 @@ Otherwise the parsed message is forwarded and the server's reply, JSON or a serv
 
 **Every tool call decision is audited.** One OCSF 1.9.0 API Activity record per allowed or denied `tools/call`, with subject, role, tool and latency, hash-chained so edits are detectable. The records hold decisions, never arguments.
 
+## Production auth
+
+The brief asks the gateway to read a bearer token and take the caller's role from it, and that is what it does, with a static list of hashed tokens. Authorization is optional in MCP, so this is allowed. A production gateway in front of a customer's MCP servers would instead be an OAuth 2.1 resource server, as MCP's authorization section describes:
+
+- Tokens issued by the customer's identity provider, never by the gateway.
+- Each token checked as issued *for this gateway* (audience binding, RFC 8707), so a token meant for another service is refused.
+- A Protected Resource Metadata document (RFC 9728), with every 401 pointing to it so clients can find the identity provider.
+- Scope-based permissions, answered with `403` and `WWW-Authenticate: Bearer error="insufficient_scope"` when a token lacks one.
+
+Only `shared/auth.py`'s `Authenticator` changes: it returns the same `Identity(subject, role)`, so the policy, the proxy and the audit trail stay as they are.
+
 ## Tests
 
 `tests/task2/`:

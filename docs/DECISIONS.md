@@ -170,17 +170,29 @@ Every choice where a reasonable person could have gone another way: what we chos
 - **Instead of:** Trusting headers or ignoring them.
 - **Why:** Required by the current spec so gateways can route on headers safely.
 
+### T2-D13. Enforce the 2026-07-28 routing headers
+
+- **Chose:** For 2026-07-28 requests, MCP-Protocol-Version, Mcp-Method and (for tools/call, prompts/get, resources/read) Mcp-Name must be present, plain visible ASCII or the base64 form, and equal to the body; otherwise 400 with -32020. Older versions: only headers that are present are checked.
+- **Instead of:** Checking only headers that happen to be present.
+- **Why:** The published Streamable HTTP spec lists a missing required header as a validation failure and says intermediaries MUST answer it with an HTTP error.
+
+### T2-D14. Tool names limited to the MCP character set
+
+- **Chose:** Refuse names outside ASCII letters, digits, _ - . / (SEP-986) with -32602, then a case-insensitive admin_ prefix check.
+- **Instead of:** Unicode normalization (NFKC) before the prefix check.
+- **Why:** NFKC does not turn a Cyrillic a into a Latin one, so look-alikes survived. One character-set rule closes them all and is easier to explain. Ignoring case over-blocks a tool named like Admin_report; accepted as defense in depth.
+
 ### T2-D7. Missing token is HTTP 401 with code -31001
 
 - **Chose:** 401 with `WWW-Authenticate: Bearer`, body code -31001, checked before the body is read.
 - **Instead of:** Reusing -32001, or a code inside the JSON-RPC reserved range.
 - **Why:** Authentication and authorization are different failures. MCP asks for new application codes outside -32768 to -32000; the 401 is what clients act on.
 
-### T2-D8. A denied tool call is HTTP 200 with a JSON-RPC error
+### T2-D8. A denied tool call is HTTP 200 with exactly the brief's error
 
-- **Chose:** 200 and `{"error":{"code":-32001,...}}`.
-- **Instead of:** HTTP 403.
-- **Why:** Found by test: the official SDK client turns any non-2xx response into a generic transport error, so with 403 the client never sees -32001. 200 is how an MCP server answers a request it refuses.
+- **Chose:** 200 and `{"code": -32001, "message": "Unauthorized Tool Call"}` with the request id, no data field.
+- **Instead of:** HTTP 403, or extra detail in the error.
+- **Why:** The brief names the error but not an HTTP status. Found by test: the official SDK client turns any non-2xx response into a generic transport error, so with 403 the client never sees -32001. Leaving out data means a test comparing the whole error object passes; the tool and role are in the log and audit record. MCP's OAuth section uses 403 for missing scopes, which this role check is not.
 
 ### T2-D9. tools/list forwarded unfiltered
 
@@ -200,11 +212,11 @@ Every choice where a reasonable person could have gone another way: what we chos
 - **Instead of:** A hand-written fake that returns canned JSON.
 - **Why:** Tests then prove the gateway works with real MCP traffic on both protocol versions, including streamed replies.
 
-### T2-D12. Denied notifications are dropped
+### T2-D12. Denied notifications are refused, not forwarded
 
-- **Chose:** A tools/call notification for an admin tool gets 202 like any notification, and is not forwarded.
-- **Instead of:** Forwarding notifications unchecked.
-- **Why:** Otherwise a caller could trigger an admin tool by leaving out the id.
+- **Chose:** A tools/call notification for an admin tool gets 403 and a JSON-RPC error with no id.
+- **Instead of:** Forwarding notifications unchecked, or answering 202 and dropping it.
+- **Why:** Otherwise a caller could trigger an admin tool by leaving out the id. MCP says a notification the server cannot accept gets an HTTP error status, never 202.
 
 ## Task 3 (planned)
 
