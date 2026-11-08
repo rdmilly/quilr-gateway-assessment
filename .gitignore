@@ -13,3 +13,9 @@ __pycache__/
 # coverage data (including per-process files from subprocess measurement)
 .coverage
 .coverage.*
+
+# Task 4 rate limit database
+data/
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm

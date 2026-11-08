@@ -1,6 +1,6 @@
 # QuilrAI assessment: MCP server, MCP gateway and LLM gateway
 
-Work in progress for the QuilrAI Solution Architect take-home, due November 9, 2026.
+Built for the QuilrAI Solution Architect take-home, November 2026.
 
 Four parts, each runnable on its own:
 
@@ -9,7 +9,7 @@ Four parts, each runnable on its own:
 | 1 | MCP server with strict input validation over stdio | [`task1_mcp_server/`](task1_mcp_server/README.md) | Done |
 | 2 | MCP security gateway: bearer token roles, admin tool blocking | [`task2_mcp_gateway/`](task2_mcp_gateway/README.md) | Done |
 | 3 | LLM gateway with streaming PII redaction | [`task3_pii_guardrail/`](task3_pii_guardrail/README.md) | Done |
-| 4 | Token rate limiter and model failover router | `task4_rate_limit_failover/` | Not started |
+| 4 | Token rate limiter and model failover router | [`task4_rate_limit_failover/`](task4_rate_limit_failover/README.md) | Done |
 
 Targets MCP specification 2026-07-28, and still accepts 2025-11-25 clients.
 
@@ -24,4 +24,4 @@ uv sync
 ./check.sh
 ```
 
-Run the Task 1 server: `uv run python -m task1_mcp_server`. Run Task 2: see [its README](task2_mcp_gateway/README.md). Task 3: [its README](task3_pii_guardrail/README.md).
+Run the Task 1 server: `uv run python -m task1_mcp_server`. Run Task 2: see [its README](task2_mcp_gateway/README.md). Task 3: [its README](task3_pii_guardrail/README.md). Task 4: [its README](task4_rate_limit_failover/README.md).

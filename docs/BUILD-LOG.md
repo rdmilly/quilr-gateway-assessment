@@ -44,3 +44,16 @@ A streaming redactor with bounded holdback, an incremental SSE reader, per-choic
 - A card-shaped window inside a long tracking number was redacted; digits continuing past a separator now count as one longer number.
 - The in-memory test transport collects whole responses, hiding streaming; time to first token is measured with real processes instead.
 - Mock controls sent as headers never reached the mock, because the gateway rightly forwards only what the provider needs; they moved into the body.
+
+## 6. Task 4: rate limiter and failover (`task4_rate_limit_failover/`)
+
+A pre-flight token estimate, a SQLite sliding-window limiter (reserve, settle, refund, fail closed), a primary/backup router with a 3000 ms deadline, and an OpenAI-compatible endpoint on port 8082. Found while building:
+
+- A mutation run proved the concurrency test matters: without `BEGIN IMMEDIATE` the 50-thread race approved up to 88,000 tokens against a 50,000 budget.
+- The HTTP client's own read timeout fired before the failover deadline, so a stalled primary failed over at 0.5 s. Only real processes showed it; the client timeout is now a backstop above every deadline.
+- In-memory mock responses with a bytes body cannot be streamed twice; scripted streams use async generators.
+- The mock provider gained a fixed `behavior`, so the primary can fail while the backup answers the very same request.
+- The README's first budget demo was wrong: sequential requests settle to real usage and never fill a small budget. Checked live and rewritten to use two requests at once.
+
+Every README command was run against real processes before commit.
+

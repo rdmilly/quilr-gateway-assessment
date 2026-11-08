@@ -9,6 +9,7 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
+import anyio
 import httpx2
 import pytest
 from starlette.types import ASGIApp, Receive, Scope, Send
@@ -371,3 +372,11 @@ async def test_every_request_is_audited_with_counts_not_content(make_rig: RigFac
     assert "my secret prompt" not in text
     assert "primary:rate_limited" in text
     assert "backup:ok" in text
+
+
+async def test_client_leaving_mid_route_refunds_the_reservation(make_rig: RigFactory) -> None:
+    rig = await make_rig(failover_timeout_ms=30_000)
+    with anyio.move_on_after(0.3):  # the client hangs up while the primary is stalled
+        await rig.chat(model="mock-stall")
+    assert len(rig.primary_seen) == 1
+    assert rig.limiter.used("tenant-a") == 0

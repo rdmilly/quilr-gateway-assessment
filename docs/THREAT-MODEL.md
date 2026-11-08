@@ -78,11 +78,18 @@ Threats tracked per component and trust boundary (B1 to B9). Status: **defended 
 | Caller's key forwarded to the provider | B3 | Token passthrough | The provider gets the gateway's key from the environment; the caller's Authorization is never forwarded. | test_endpoint.py::test_provider_gets_the_gateway_key_never_the_callers | defended + tested |
 | PII spelled out in words, or names and phone numbers | pii | Coverage gap | Out of scope; documented in the README. | README, Known limits | open |
 
-## Task 4 (planned)
+## Task 4
 
 | Threat | Where | Class | Defense | Proof | Status |
 | --- | --- | --- | --- | --- | --- |
-| Concurrent requests overshoot the token budget | limit, sqlite, B5 | LLM10 unbounded consumption | Check and reserve inside one BEGIN IMMEDIATE transaction, then settle to the real usage. | planned: 50 concurrent requests test | planned |
-| Limiter store broken or tampered | limit, sqlite, B5 | Fail-open | Fail closed with 503 if the store cannot be read or written. | planned | planned |
-| Failover charges twice or answers twice | router, B3, B4 | Race condition | Cancel the primary before calling the backup; charge the tenant once. | planned | planned |
-| Upstream error leaks stack traces or internals | router | Information disclosure | One error envelope {error:{type,code,message,request_id}} with fixed messages and Retry-After. | planned | planned |
+| Concurrent requests overshoot the token budget | limit, sqlite, B5 | LLM10 unbounded consumption | Check and reserve inside one BEGIN IMMEDIATE transaction, then settle to real usage. | test_fifty_concurrent_requests_never_overshoot; mutation run without it: 88,000 of 50,000 | done |
+| Limiter store broken, tampered or locked | limit, sqlite, B5 | Fail-open | Every store error becomes 503 and no provider call. | tests for missing dir, corrupt file, dropped table, held lock, and at the endpoint | done |
+| Estimate gamed with non-English text | estimate | LLM10 | Count UTF-8 bytes, not characters; settle to real usage. | test_non_ascii_text_is_not_undercounted | done |
+| Failover answers twice or leaks a connection | router, B3, B4 | Race condition | One clock (fail_after) per attempt; half-open response closed on every path, including cancellation, before the backup runs. | test_timed_out_attempt_closes_before_the_backup_runs; test_cancelled_attempt_closes_the_half_open_response | done |
+| Failover charges twice | router, limit | Billing integrity | The router never touches the limiter; one reserve and one settle per request. | test_failover_charges_once | done |
+| Client hangs up mid-route and is billed | app, limit | Billing integrity | Reservation refunded on cancellation. | test_client_leaving_mid_route_refunds_the_reservation | done |
+| Stalled provider holds connections forever | router, app | Resource exhaustion | 3000 ms first-chunk deadline, then a stream idle cut-off, then a client backstop above both. | test_processes (3.05 s failover, idle cut) | done |
+| Upstream error leaks stack traces or internals | router, app | Information disclosure | Provider error bodies never read; fixed messages; one envelope. | test_provider_error_details_never_reach_the_client | done |
+| Caller's key forwarded to a provider | app, router | Token passthrough | Provider keys come from the gateway's environment only. | test_provider_keys_are_the_gateways_never_the_callers | done |
+| Prompt text written to logs | app, audit | Sensitive data in logs | Audit holds counts and the route, never content. | test_every_request_is_audited_with_counts_not_content | done |
+| One database file for a fleet | limit | Scale | Documented: Redis (Lua) or Postgres (FOR UPDATE) for several hosts. | README, Known limits | open |

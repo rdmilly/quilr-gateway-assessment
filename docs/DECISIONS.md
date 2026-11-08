@@ -256,34 +256,59 @@ Every choice where a reasonable person could have gone another way: what we chos
 - **Instead of:** Passing the provider's error through, or reading it to rewrite it.
 - **Why:** The brief's Task 4 requires no leaked upstream details, and the mock 500 carries a stack trace, a file path and an internal IP to prove it.
 
-## Task 4 (planned)
+## Task 4
 
 ### D25. SQLite with explicit transactions
 
-- **Chose:** sqlite3.connect(..., autocommit=True) plus explicit BEGIN IMMEDIATE.
-- **Instead of:** Python's default transaction handling.
-- **Why:** With the default, a manual BEGIN fails. BEGIN IMMEDIATE takes the write lock up front so check-and-reserve is atomic.
+- **Chose:** `sqlite3.connect(..., autocommit=True)` plus an explicit `BEGIN IMMEDIATE`, one connection per operation, WAL mode.
+- **Instead of:** Python's default transaction handling, or one shared connection.
+- **Why:** With the default, a manual BEGIN fails. `BEGIN IMMEDIATE` takes the write lock before the first read, so check-and-reserve is atomic whatever order the statements come in. One connection per call because the endpoint calls the limiter from a thread pool and sqlite3 connections must not cross threads; SQLite's own lock does the serializing, which also covers several processes on one file.
+- **Proof:** 50 threads racing for 50,000 tokens at 2,000 each: exactly 25 approved, every run. A mutation run without the transaction approved up to 44 (88,000 tokens).
 
 ### T4-D1. Reserve then settle
 
-- **Chose:** Reserve an estimate (chars/4 + max_tokens) inside the transaction, settle to reported usage after.
-- **Instead of:** Count only after the response.
-- **Why:** Counting after lets 50 parallel requests all pass a nearly full budget.
+- **Chose:** Reserve an upper-bound estimate (UTF-8 bytes / 4 of messages and tools, plus `max_tokens` or a default, times `n`) inside the transaction; settle to the provider's `usage.total_tokens` afterwards; refund when no provider answered.
+- **Instead of:** Counting only after the response.
+- **Why:** Counting after lets 50 parallel requests all pass a nearly full budget. Bytes rather than characters so non-English text is not undercounted. For streams the router asks the provider for usage and strips it again if the client did not ask.
 
 ### T4-D2. Fail closed
 
-- **Chose:** 503 if the limiter store is unavailable.
+- **Chose:** 503 and no provider call if the store is missing, corrupt, tampered with or locked past the busy timeout.
 - **Instead of:** Fail open.
-- **Why:** A broken limiter should not become unlimited spend.
+- **Why:** A broken limiter must not become unlimited spend, or a way to switch the limit off.
 
-### T4-D3. Failover on 429 and timeout only
+### T4-D3. Failover on 429 and timeout only, by default
 
-- **Chose:** Cancel primary, then call backup; charge once.
-- **Instead of:** Also on 5xx and connection errors by default.
-- **Why:** That is what the brief specifies; the wider set is a flag.
+- **Chose:** Fail over on the two triggers the brief names. 5xx and connection errors return 502 unless `failover_on_errors = true`.
+- **Instead of:** Failing over on every error.
+- **Why:** The brief specifies 429 and timeout. A 5xx often means the request itself is bad, and a second paid provider would fail it too, at double the cost.
 
 ### T4-D4. One error envelope
 
-- **Chose:** {error:{type,code,message,request_id}} with a fixed status map and Retry-After.
+- **Chose:** `{"error": {"type", "code", "message", "request_id"}}` with a fixed status map, fixed messages and `Retry-After`.
 - **Instead of:** Passing upstream errors through.
-- **Why:** The brief requires sanitized errors; one shape is easy for clients.
+- **Why:** The brief requires sanitized errors. Provider error bodies are never read at all, so nothing in them can leak.
+
+### T4-D5. What "answered within 3000 ms" means
+
+- **Chose:** Plain request: the whole body inside the deadline. Stream: headers and the first chunk. After that a stream stays with its provider, with an idle cut-off (`stream_idle_timeout_s`).
+- **Instead of:** Headers only, or failing over mid-stream.
+- **Why:** A provider that sends `200 OK` and then nothing would pass a headers-only check and hang. Switching mid-stream would send the client the start of two different answers.
+
+### T4-D6. One clock decides failover
+
+- **Chose:** `anyio.fail_after` around each attempt is the only failover clock; the HTTP client's own timeout is a backstop set above every deadline.
+- **Instead of:** Letting the client's read timeout double as the deadline.
+- **Why:** Found by the real-process test: the client's read timeout (the stream idle setting, 0.5 s in the test) fired first and failed over at 0.5 s. Two timers on one event is a timeout race; now there is one.
+
+### T4-D7. A request bigger than the window is 400, not 429
+
+- **Chose:** `request_too_large` (400) when the estimate alone exceeds the whole budget.
+- **Instead of:** 429.
+- **Why:** 429 tells the client to retry, and this request can never fit.
+
+### T4-D8. Exact Retry-After
+
+- **Chose:** Seconds until enough of the tenant's oldest rows expire for this request to fit.
+- **Instead of:** Always the window length.
+- **Why:** An honest Retry-After stops clients retrying too early (wasted calls) or waiting too long.

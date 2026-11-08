@@ -33,3 +33,18 @@ provider_url = "http://127.0.0.1:9100/v1/chat/completions"   # the mock provider
 upstream_timeout_s = 60
 host = "127.0.0.1"
 port = 8081
+
+[llm_router]
+primary_url = "http://127.0.0.1:9100/v1/chat/completions"   # mock provider "primary"
+backup_url = "http://127.0.0.1:9101/v1/chat/completions"    # mock provider "backup"
+# primary_api_key_env = "PRIMARY_API_KEY"                    # env vars holding provider keys
+# backup_api_key_env = "BACKUP_API_KEY"
+failover_timeout_ms = 3000      # primary must answer (first chunk, for streams) within this
+failover_on_errors = false      # true: also fail over on 5xx and connection errors
+stream_idle_timeout_s = 60      # cut a stream that has started and then goes silent
+tokens_per_window = 50000       # per tenant (the token's subject)
+window_s = 60
+db_path = "data/rate_limits.sqlite3"
+default_max_tokens = 1024       # assumed completion size when a request sets no max_tokens
+host = "127.0.0.1"
+port = 8082
