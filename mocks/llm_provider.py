@@ -10,6 +10,10 @@ test controls exactly what the "model" says. The model name picks a behavior:
   file path), so the gateway's error cleaning can be tested.
 * ``mock-stall``: wait before answering, longer than any sane timeout.
 
+A provider can also be started with a fixed ``behavior`` (or ``$MOCK_LLM_BEHAVIOR``) that
+overrides the model name, so a test can make the primary fail while the backup answers the
+very same request.
+
 An extra body field shapes the stream, since a gateway forwards the body but
 not arbitrary headers: ``"mock": {"chunk_chars": 3, "delay_ms": 0}`` sets the
 characters per chunk and the pause between chunks.
@@ -51,14 +55,18 @@ def _usage(body: dict[str, Any], text: str) -> dict[str, int]:
     }
 
 
-def create_app(name: str = "mock-provider", seen: list[dict[str, Any]] | None = None) -> Starlette:
+def create_app(
+    name: str = "mock-provider",
+    seen: list[dict[str, Any]] | None = None,
+    behavior: str | None = None,
+) -> Starlette:
     """``name`` labels responses (``id``), so tests can tell a primary from a backup."""
 
     async def completions(request: Request) -> Response:
         body = await request.json()
         if seen is not None:
             seen.append({"headers": dict(request.headers), "body": body})
-        model = str(body.get("model", "mock-echo"))
+        model = behavior or str(body.get("model", "mock-echo"))
         if model == "mock-429":
             return JSONResponse(
                 {
@@ -176,4 +184,8 @@ if __name__ == "__main__":
 
     configure_logging()
     port = int(os.environ.get("MOCK_LLM_PORT", "9100"))
-    uvicorn.run(create_app(), host="127.0.0.1", port=port, access_log=False, log_config=None)
+    app = create_app(
+        os.environ.get("MOCK_LLM_NAME", "mock-provider"),
+        behavior=os.environ.get("MOCK_LLM_BEHAVIOR") or None,
+    )
+    uvicorn.run(app, host="127.0.0.1", port=port, access_log=False, log_config=None)
