@@ -21,6 +21,7 @@ dev = [
     "pytest>=9",
     "pytest-asyncio>=1.3",
     "hypothesis",
+    "pytest-cov==7.1.0",
     "ruff",
     "mypy",
     "import-linter",
@@ -42,7 +43,9 @@ line-length = 100
 target-version = "py312"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "B", "UP", "S", "SIM"]
+# S: security (Bandit's rules). ASYNC: blocking calls inside async code. BLE: catch-all
+# excepts, the classic way a guard fails open. DTZ: timezone-naive datetimes.
+select = ["E", "F", "I", "B", "UP", "S", "SIM", "ASYNC", "BLE", "DTZ", "PT", "RUF", "PGH"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "S105", "S106"]
@@ -51,6 +54,15 @@ select = ["E", "F", "I", "B", "UP", "S", "SIM"]
 [tool.mypy]
 strict = true
 files = ["shared", "tests"]
+
+[tool.coverage.run]
+branch = true
+source = ["shared"]
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+skip_covered = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

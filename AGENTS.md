@@ -31,5 +31,12 @@ extra stays off by default and is listed in the README's deviations table with t
 
 ## The gate
 
-`./check.sh` runs lint, format, type checks and tests. Nothing is committed unless it passes.
-CI runs the same gate on Python 3.12 to 3.15, plus a full-history secret scan and a dependency audit.
+`./check.sh` must pass before anything is committed. It checks, in order: the lock file matches
+`pyproject.toml`; lint, including security rules (Bandit's set, blocking calls in async code,
+catch-all excepts); formatting; strict type checks; tests with a 90% branch-coverage floor; the CI
+workflows for security problems (zizmor); and the working tree for secrets (Betterleaks).
+
+CI runs the same gate on Python 3.12 to 3.14 and adds: a full-history secret scan, a dependency
+audit against two advisory databases (OSV via `uv audit`, PyPI via pip-audit), a malware check
+on every install, workflow linting, and CodeQL code scanning. Every action is pinned to a commit,
+and dependency resolution ignores versions published in the last week.

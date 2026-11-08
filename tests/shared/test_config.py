@@ -42,7 +42,7 @@ def test_A0_14_a_missing_section_stops_startup(tmp_path: Path) -> None:
 
 
 def test_A0_14_an_unknown_setting_stops_startup(tmp_path: Path) -> None:
-    with pytest.raises(ConfigError, match="demo.limt"):
+    with pytest.raises(ConfigError, match=r"demo\.limt"):
         load_section(_Demo, "demo", _write(tmp_path, "[demo]\nlimit = 1\nlimt = 2\n"))
 
 

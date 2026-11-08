@@ -2,10 +2,15 @@ name: ci
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 permissions:
   contents: read
+
+env:
+  # Refuse to install any package version listed as malware in OSV (uv preview feature).
+  UV_MALWARE_CHECK: "1"
 
 jobs:
   gate:
@@ -16,12 +21,30 @@ jobs:
         python: ["3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
-          version: "0.9.27"
+          version: "0.13.3"
           python-version: ${{ matrix.python }}
-      - run: uv sync --locked
-      - run: ./check.sh
+      - run: uv sync --locked --preview-features malware-check
+      - run: ./check.sh --ci
+
+  supply-chain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.3"
+      - name: Known vulnerabilities, OSV database (uv audit)
+        run: uv audit --locked --preview-features audit-command
+      - name: Known vulnerabilities, PyPI advisory database (pip-audit)
+        run: |
+          uv export --locked --format requirements-txt --no-emit-project -o requirements-audit.txt
+          uvx pip-audit==2.10.1 --disable-pip -r requirements-audit.txt
 
   secrets:
     runs-on: ubuntu-latest
@@ -29,17 +52,20 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - name: Scan full history for secrets
-        run: docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 git /repo --redact --verbose
+          persist-credentials: false
+      - name: Scan the full git history for secrets (Betterleaks)
+        run: docker run --rm -v "$PWD:/repo" ghcr.io/betterleaks/betterleaks:v1.9.0 git /repo --redact
 
-  audit:
+  workflows:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
-          version: "0.9.27"
-      - name: Check dependencies for known vulnerabilities
-        run: |
-          uv export --locked --format requirements-txt --no-emit-project > requirements-audit.txt
-          uvx pip-audit --disable-pip -r requirements-audit.txt
+          version: "0.13.3"
+      - name: Lint the CI workflows for security problems (zizmor)
+        run: uvx zizmor==1.31.1 --format plain .github/workflows
+        env:
+          GH_TOKEN: ${{ github.token }}

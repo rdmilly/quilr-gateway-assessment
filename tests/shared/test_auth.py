@@ -102,7 +102,7 @@ def test_an_unknown_role_stops_startup(tmp_path: Path) -> None:
     path.write_text(
         f'[auth]\ntokens = [{{ sha256 = "{hash_token("x")}", subject = "a", role = "root" }}]\n'
     )
-    with pytest.raises(ConfigError, match="auth.tokens.0.role"):
+    with pytest.raises(ConfigError, match=r"auth\.tokens\.0\.role"):
         load_section(AuthSettings, "auth", path)
 
 
