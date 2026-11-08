@@ -8,7 +8,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from task3_pii_guardrail.sse import EventTooLarge, SSEReader
+from shared.sse import EventTooLarge, SSEReader
 
 STREAM = (
     ": comment line\n"

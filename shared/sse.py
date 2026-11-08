@@ -1,4 +1,4 @@
-"""Read a server-sent event stream as it arrives, piece by piece.
+"""Read a server-sent event stream as it arrives, piece by piece (Tasks 3 and 4).
 
 Network reads cut the stream anywhere: in the middle of a line, between the
 ``\\r`` and ``\\n`` of a line ending, or inside a multi-byte UTF-8 character.

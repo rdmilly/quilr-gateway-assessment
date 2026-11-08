@@ -36,11 +36,11 @@ from starlette.routing import Route
 from shared.audit import AuditLog, Decision, DecisionEvent
 from shared.errors import GatewayError, GatewayErrorType, new_request_id
 from shared.logs import log_event
+from shared.sse import EventTooLarge, SSEReader
 
 from .completions import CompletionStreamRedactor, redact_completion
 from .redactor import redact
 from .settings import LlmGatewaySettings
-from .sse import EventTooLarge, SSEReader
 
 LANE = "llm"
 POLICY_ID = "llm.pii-redaction.v1"
