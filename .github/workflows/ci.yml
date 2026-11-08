@@ -54,7 +54,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Scan the full git history for secrets (Betterleaks)
-        run: docker run --rm -v "$PWD:/repo" ghcr.io/betterleaks/betterleaks:v1.9.0 git /repo --redact
+        run: docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/repo" ghcr.io/betterleaks/betterleaks:v1.9.0 git /repo --redact
 
   workflows:
     runs-on: ubuntu-latest
