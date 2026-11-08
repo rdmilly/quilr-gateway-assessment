@@ -48,11 +48,15 @@ def request_headers(
 
 
 def response_headers(upstream: httpx2.Response) -> dict[str, str]:
-    return {
+    headers = {
         name: value
         for name, value in upstream.headers.items()
         if name.lower() in _RETURN_RESPONSE_HEADERS
     }
+    if upstream.headers.get("content-type", "").startswith("text/event-stream"):
+        # Tells proxies such as nginx to pass each event on at once instead of buffering.
+        headers["x-accel-buffering"] = "no"
+    return headers
 
 
 class Downstream:

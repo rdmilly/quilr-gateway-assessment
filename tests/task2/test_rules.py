@@ -8,7 +8,7 @@ from hypothesis import strategies as st
 
 from shared.auth import Identity, Role
 from task2_mcp_gateway.jsonrpc import Kind, ParseProblem, parse_message
-from task2_mcp_gateway.mcp_headers import decode_header_value, header_mismatch
+from task2_mcp_gateway.mcp_headers import decode_header_value, header_problem
 from task2_mcp_gateway.policy import canonical_tool_name, decide, is_admin_tool
 
 VIEWER = Identity(subject="victor", role=Role.VIEWER)
@@ -126,6 +126,9 @@ def test_encoded_header_values() -> None:
     assert decode_header_value("lookup_order") == "lookup_order"
     assert decode_header_value("=?base64?bG9va3VwX8O2cmTDqXI=?=") == "lookup_ördér"
     assert decode_header_value("=?base64?not base64!?=") is None
+    assert decode_header_value("has space inside") == "has space inside"
+    assert decode_header_value(" leading") is None
+    assert decode_header_value("") is None
 
 
 @pytest.mark.parametrize(
@@ -136,13 +139,30 @@ def test_encoded_header_values() -> None:
         ({"mcp-method": "tools/list"}, "Mcp-Method does not match the body"),
         ({"mcp-name": "admin_reset_key"}, "Mcp-Name does not match the body"),
         ({"mcp-name": "=?base64?bG9va3VwX29yZGVy?="}, None),  # "lookup_order", encoded
-        ({"mcp-name": "=?base64?%%%?="}, "Mcp-Name does not match the body"),
+        ({"mcp-name": "=?base64?%%%?="}, "Mcp-Name header has invalid characters"),
+        ({"mcp-name": " lookup_order"}, "Mcp-Name header has invalid characters"),
+        ({"mcp-method": "tools/call\t"}, "Mcp-Method header has invalid characters"),
     ],
 )
-def test_header_mismatch(headers: dict[str, str], problem: str | None) -> None:
-    assert header_mismatch(headers, parse_message(_call("lookup_order"))) == problem
+def test_header_problem(headers: dict[str, str], problem: str | None) -> None:
+    assert header_problem(headers, parse_message(_call("lookup_order"))) == problem
 
 
 def test_name_header_on_a_method_without_a_name_is_a_mismatch() -> None:
     message = parse_message(b'{"jsonrpc":"2.0","id":1,"method":"tools/list"}')
-    assert header_mismatch({"mcp-name": "x"}, message) == "Mcp-Name does not match the body"
+    assert header_problem({"mcp-name": "x"}, message) == "Mcp-Name does not match the body"
+
+
+def test_modern_request_needs_every_routing_header() -> None:
+    import json
+
+    body = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/call",
+        "params": {"name": "x", "_meta": {"io.modelcontextprotocol/protocolVersion": "2026-07-28"}},
+    }
+    message = parse_message(json.dumps(body).encode())
+    full = {"mcp-protocol-version": "2026-07-28", "mcp-method": "tools/call", "mcp-name": "x"}
+    assert header_problem(full, message) is None
+    assert header_problem({}, message) == "MCP-Protocol-Version header is missing"

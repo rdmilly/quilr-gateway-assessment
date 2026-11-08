@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import io
 import json
 from dataclasses import dataclass
@@ -42,14 +43,27 @@ def list_tools(request_id: Any = 1) -> dict[str, Any]:
     return {"jsonrpc": "2.0", "id": request_id, "method": "tools/list", "params": {"_meta": META}}
 
 
+def encode_header_value(value: str) -> str:
+    """A header value as a 2026-07-28 client sends it: plain if safe, else the base64 form."""
+    plain = (
+        value != ""
+        and value == value.strip(" \t")
+        and all(ch in " \t" or 0x21 <= ord(ch) <= 0x7E for ch in value)
+        and not (value.startswith("=?base64?") and value.endswith("?="))
+    )
+    if plain:
+        return value
+    return "=?base64?" + base64.b64encode(value.encode("utf-8")).decode("ascii") + "?="
+
+
 def mcp_headers(body: Any) -> dict[str, str]:
     """The 2026-07-28 routing headers a real client sends for this body."""
     headers = {"mcp-protocol-version": "2026-07-28"}
     if isinstance(body, dict) and isinstance(body.get("method"), str):
         headers["mcp-method"] = body["method"]
         name = body.get("params", {}).get("name")
-        if body["method"] == "tools/call" and isinstance(name, str) and name.isascii():
-            headers["mcp-name"] = name
+        if body["method"] == "tools/call" and isinstance(name, str):
+            headers["mcp-name"] = encode_header_value(name)
     return headers
 
 

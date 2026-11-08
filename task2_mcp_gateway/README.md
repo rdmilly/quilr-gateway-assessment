@@ -51,15 +51,15 @@ Every request takes the same path through `app.py`, in this order. Each check ru
 
 | Step | Fails with | Why it's here |
 | --- | --- | --- |
-| Origin header not on the allow list | HTTP 403 | DNS rebinding protection, required by the MCP spec. Agents send no Origin, so they pass. |
+| Origin header not on the allow list | HTTP 403, JSON-RPC error with no `id` | DNS rebinding protection, required by the MCP spec. Agents send no Origin, so they pass. |
 | No valid bearer token | HTTP 401, `WWW-Authenticate: Bearer` | Checked before the body is read, so an anonymous caller costs almost nothing. |
 | Not `application/json`, or body over 1 MiB | HTTP 415 / 413 | Bounded work per request. |
 | Not exactly one JSON-RPC message | HTTP 400, `-32700` or `-32600` | See "One message, read strictly" below. |
-| `Mcp-Method` / `Mcp-Name` headers disagree with the body | HTTP 400, `-32020` | Required by MCP 2026-07-28. |
+| 2026-07-28 routing headers (`MCP-Protocol-Version`, `Mcp-Method`, `Mcp-Name`) missing, malformed, or different from the body | HTTP 400, `-32020` | Required by MCP 2026-07-28, so nothing in the path can route on one value while the server acts on another. Older protocol versions did not define these headers, so for them only headers that are present are checked. |
 | `tools/call` on an `admin_` tool, role is not admin | HTTP 200, `-32001` | The brief's rule. The server is never contacted. |
 | Downstream unreachable or too slow | HTTP 502 / 504, `-32603` | Fixed message; no upstream details leak. |
 
-Otherwise the parsed message is forwarded and the server's reply, JSON or a server-sent event stream, is streamed back as it arrives.
+Otherwise the parsed message is forwarded and the server's reply, JSON or a server-sent event stream, is streamed back as it arrives. Streamed replies carry `X-Accel-Buffering: no` so proxies such as nginx pass each event on at once.
 
 ## Decisions worth knowing
 
@@ -74,7 +74,7 @@ Otherwise the parsed message is forwarded and the server's reply, JSON or a serv
 **One message, read strictly, forwarded as parsed.** The gateway decides on what it parsed and forwards that, re-serialized, never the original bytes. Anything two JSON parsers might read differently is refused, so the gateway and the server cannot disagree about which tool is being called:
 
 - duplicate keys (`{"name": "lookup_order", "name": "admin_reset_key"}`),
-- batches,
+- batches (MCP 2026-07-28: the body MUST be a single request or notification),
 - `NaN`, `Infinity` and out-of-range numbers,
 - lone surrogates,
 - invalid UTF-8,
@@ -86,7 +86,7 @@ Otherwise the parsed message is forwarded and the server's reply, JSON or a serv
 
 **One fixed downstream.** The target URL comes from config, never from the request, so a caller cannot point the gateway at another host.
 
-**Denied notifications are dropped.** A `tools/call` sent as a notification (no id) gets HTTP 202 like any notification, but is not forwarded.
+**Denied notifications are refused, not forwarded.** A `tools/call` sent as a notification (no id) for an admin tool gets HTTP 403 and a JSON-RPC error with no `id`. MCP says a notification the server cannot accept gets an HTTP error status, never `202 Accepted`.
 
 **Every tool call decision is audited.** One OCSF 1.9.0 API Activity record per allowed or denied `tools/call`, with subject, role, tool and latency, hash-chained so edits are detectable. The records hold decisions, never arguments.
 
@@ -107,5 +107,5 @@ uv run pytest tests/task2
 
 - Tokens are a static, hashed list in config. Production would verify OAuth or JWT tokens from an identity provider; the `Authenticator` is the one place that would change.
 - The role comes from the token alone. Per-tool policies (read-only, needs approval, redact arguments) would extend `policy.py`.
-- Only `POST` is served. The 2025-11-25 `GET` event stream and session `DELETE` return 405; the mock server is stateless and does not need them.
+- Only `POST` is served. `GET` and `DELETE` return 405, which is what MCP 2026-07-28 asks for; the mock server is stateless and needs neither.
 - Numbers are forwarded as Python reads them, so `1.10` is sent as `1.1`. The value is the same; the text is not.

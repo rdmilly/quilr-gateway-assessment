@@ -12,7 +12,9 @@ from shared.audit import AuditLog, verify_chain
 from shared.auth import Authenticator
 from task2_mcp_gateway.app import create_app
 from task2_mcp_gateway.settings import GatewaySettings
-from tests.task2.support import ALLOWED_ORIGIN, Rig, call, list_tools, post, reply
+from tests.task2.support import ALLOWED_ORIGIN, Rig, call, list_tools, mcp_headers, post, reply
+
+MODERN_LIST = {"mcp-protocol-version": "2026-07-28", "mcp-method": "tools/list"}
 
 # --- who are you -------------------------------------------------------------
 
@@ -86,7 +88,7 @@ async def test_admin_can_call_an_admin_tool(rig: Rig) -> None:
     ],
 )
 async def test_disguised_admin_tool_names_are_still_refused(rig: Rig, name: str) -> None:
-    response = await post(rig, call(5, name), routing_headers=False)
+    response = await post(rig, call(5, name))
     assert response.json()["error"]["code"] == -32001
     assert rig.seen == []
 
@@ -99,11 +101,16 @@ async def test_names_that_only_look_similar_are_not_blocked(rig: Rig, name: str)
     assert len(rig.seen) == 1
 
 
-async def test_denied_tool_call_notification_is_dropped(rig: Rig) -> None:
+async def test_denied_tool_call_notification_is_refused_not_forwarded(rig: Rig) -> None:
     body = {"jsonrpc": "2.0", "method": "tools/call", "params": {"name": "admin_reset_key"}}
     response = await post(rig, body)
-    assert response.status_code == 202
-    assert response.content == b""
+    # MCP: a notification the server cannot accept gets an HTTP error status, never 202,
+    # and the error carries no id.
+    assert response.status_code == 403
+    assert response.json() == {
+        "jsonrpc": "2.0",
+        "error": {"code": -32001, "message": "Unauthorized Tool Call"},
+    }
     assert rig.seen == []
 
 
@@ -156,7 +163,11 @@ async def test_header_that_disagrees_with_body_is_refused(rig: Rig) -> None:
         body,
         as_role="admin",
         routing_headers=False,
-        headers={"mcp-method": "tools/call", "mcp-name": "lookup_order"},
+        headers={
+            "mcp-protocol-version": "2026-07-28",
+            "mcp-method": "tools/call",
+            "mcp-name": "lookup_order",
+        },
     )
     assert response.status_code == 400
     assert response.json()["error"] == {
@@ -194,6 +205,7 @@ async def test_oversized_body_is_413(rig: Rig) -> None:
 async def test_unknown_origin_is_403_and_allowed_origin_passes(rig: Rig) -> None:
     refused = await post(rig, list_tools(), headers={"origin": "https://evil.example"})
     assert refused.status_code == 403
+    assert "id" not in refused.json()  # MCP: this error carries no id
     allowed = await post(rig, list_tools(), headers={"origin": ALLOWED_ORIGIN})
     assert allowed.status_code == 200
     assert "origin" not in rig.seen[-1]
@@ -247,6 +259,7 @@ async def test_downstream_failure_is_a_clean_error(
             content=json.dumps(list_tools(11)),
             headers={
                 "authorization": "Bearer test-viewer-token",
+                **MODERN_LIST,
                 "content-type": "application/json",
             },
         )
@@ -287,6 +300,7 @@ async def test_gateway_creates_and_closes_its_own_client(authenticator: Authenti
             content=json.dumps(list_tools(12)),
             headers={
                 "authorization": "Bearer test-viewer-token",
+                **MODERN_LIST,
                 "content-type": "application/json",
             },
         )
@@ -302,7 +316,11 @@ async def test_chunked_body_over_the_limit_is_cut_off(rig: Rig) -> None:
     response = await rig.gateway.post(
         "/mcp",
         content=chunks(),
-        headers={"authorization": "Bearer test-viewer-token", "content-type": "application/json"},
+        headers={
+            "authorization": "Bearer test-viewer-token",
+            **MODERN_LIST,
+            "content-type": "application/json",
+        },
     )
     assert response.status_code == 413
 
@@ -311,3 +329,77 @@ async def test_injected_client_survives_the_app_lifespan(rig: Rig) -> None:
     async with rig.gateway_app.router.lifespan_context(rig.gateway_app):
         response = await post(rig, list_tools(13))
     assert reply(response)["id"] == 13
+
+
+# --- 2026-07-28 routing headers are required -----------------------------------
+
+
+@pytest.mark.parametrize(
+    ("drop", "problem"),
+    [
+        ("mcp-protocol-version", "MCP-Protocol-Version header is missing"),
+        ("mcp-method", "Mcp-Method header is missing"),
+        ("mcp-name", "Mcp-Name header is missing"),
+    ],
+)
+async def test_missing_routing_header_is_refused(rig: Rig, drop: str, problem: str) -> None:
+    body = call(20, "lookup_order", {"order_id": "A1"})
+    headers = mcp_headers(body)
+    del headers[drop]
+    response = await post(rig, body, routing_headers=False, headers=headers)
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == -32020
+    assert response.json()["error"]["data"] == {"detail": problem}
+    assert rig.seen == []
+
+
+async def test_version_header_must_match_the_body(rig: Rig) -> None:
+    response = await post(rig, list_tools(21), headers={"mcp-protocol-version": "2025-11-25"})
+    assert response.status_code == 400
+    assert response.json()["error"]["data"]["detail"] == (
+        "MCP-Protocol-Version does not match the body"
+    )
+
+
+async def test_header_with_characters_that_need_encoding_is_refused(rig: Rig) -> None:
+    body = call(22, "lookup_order")
+    response = await post(rig, body, headers={"mcp-name": "lookup_order "})  # trailing space
+    assert response.status_code == 400
+    assert response.json()["error"]["data"]["detail"] == "Mcp-Name header has invalid characters"
+
+
+async def test_encoded_name_header_is_accepted(rig: Rig) -> None:
+    body = call(23, "lookup_order", {"order_id": "A1"})
+    encoded = "=?base64?" + "bG9va3VwX29yZGVy" + "?="  # "lookup_order"
+    response = await post(rig, body, headers={"mcp-name": encoded})
+    assert response.status_code == 200
+    assert "result" in reply(response)
+
+
+async def test_legacy_requests_need_no_routing_headers(rig: Rig) -> None:
+    body = {
+        "jsonrpc": "2.0",
+        "id": 24,
+        "method": "tools/call",
+        "params": {"name": "admin_reset_key"},
+    }  # no _meta: a 2025-11-25 style request
+    response = await post(rig, body, routing_headers=False)
+    assert response.json()["error"]["code"] == -32001  # policy still applies
+
+
+async def test_client_responses_are_refused_on_2026_07_28(rig: Rig) -> None:
+    body = {"jsonrpc": "2.0", "id": 25, "result": {}}
+    response = await post(
+        rig, body, routing_headers=False, headers={"mcp-protocol-version": "2026-07-28"}
+    )
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == -32600
+    assert rig.seen == []
+
+
+async def test_streamed_replies_tell_proxies_not_to_buffer(rig: Rig) -> None:
+    response = await post(rig, list_tools(26))
+    if response.headers["content-type"].startswith("text/event-stream"):
+        assert response.headers["x-accel-buffering"] == "no"
+    else:
+        assert "x-accel-buffering" not in response.headers

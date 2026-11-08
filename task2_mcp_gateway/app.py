@@ -5,7 +5,7 @@
    Checked before the body is read, so an anonymous caller costs almost nothing.
 3. **Is it JSON.** Wrong content type: 415. Body over the limit: 413.
 4. **Parse once.** Not exactly one JSON-RPC message: 400 with -32700 or -32600.
-5. **Headers agree with the body** (2026-07-28): otherwise 400 with -32020.
+5. **Routing headers** present and equal to the body (2026-07-28): otherwise 400 with -32020.
 6. **Policy.** ``tools/call`` on an ``admin_`` tool without the admin role:
    ``-32001 Unauthorized Tool Call``, and the downstream server is never contacted.
 7. **Forward** the parsed message to the one downstream server; stream its reply back.
@@ -46,7 +46,7 @@ from shared.errors import (
 from shared.logs import log_event
 
 from .jsonrpc import Kind, Message, ParseProblem, parse_message
-from .mcp_headers import header_mismatch
+from .mcp_headers import LEGACY_VERSIONS, header_problem
 from .policy import POLICY_ID, decide
 from .proxy import Downstream, body_chunks, response_headers
 from .settings import GatewaySettings
@@ -60,6 +60,11 @@ MCP_PATH = "/mcp"
 LANE = "mcp"
 
 logger = logging.getLogger(__name__)
+
+
+def _error_without_id(status: int, code: int, message: str) -> JSONResponse:
+    """For refusals that are not an answer to one request; MCP says these carry no id."""
+    return JSONResponse({"jsonrpc": "2.0", "error": {"code": code, "message": message}}, status)
 
 
 def _error(
@@ -139,7 +144,7 @@ def create_app(
 
         origin = headers.get("origin")
         if origin is not None and origin not in settings.allowed_origins:
-            return _error(403, None, INVALID_REQUEST, "Origin not allowed")
+            return _error_without_id(403, INVALID_REQUEST, "Origin not allowed")
 
         identity = authenticator.identify(headers.get("authorization"))
         if identity is None:
@@ -173,9 +178,14 @@ def create_app(
             )
             return _error(400, problem.request_id, problem.code, problem.message)
 
-        mismatch = header_mismatch(headers, message)
-        if mismatch is not None:
-            return _error(400, message.id, HEADER_MISMATCH, "Header mismatch", detail=mismatch)
+        header_issue = header_problem(headers, message)
+        if header_issue is not None:
+            return _error(400, message.id, HEADER_MISMATCH, "Header mismatch", detail=header_issue)
+
+        version_header = headers.get("mcp-protocol-version")
+        if message.kind is Kind.RESPONSE and version_header not in (None, *LEGACY_VERSIONS):
+            # From 2026-07-28 on, clients send only requests and notifications.
+            return _error(400, message.id, INVALID_REQUEST, "Invalid Request: unexpected response")
 
         verdict = decide(identity, message)
         if message.method == "tools/call":
@@ -199,7 +209,8 @@ def create_app(
                 tool=verdict.tool,
             )
             if message.kind is Kind.NOTIFICATION:
-                return Response(status_code=202)  # notifications get no reply, denied or not
+                # A notification the server cannot accept gets an HTTP error status, never 202.
+                return _error_without_id(403, UNAUTHORIZED_TOOL_CALL, "Unauthorized Tool Call")
             return _error(
                 200,
                 message.id,
