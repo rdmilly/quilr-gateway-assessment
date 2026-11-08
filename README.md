@@ -74,3 +74,15 @@ Every task reads `config.toml` (copy `config.example.toml`), and each README has
 - Task 4: [README](task4_rate_limit_failover/README.md)
 
 The mocks in `mocks/` stand in for the downstream MCP server and the model providers. Product code never imports them; an import rule in the gate enforces it.
+
+## How this was built
+
+I direct the work and Claude Code writes the code. I set the design, the specs, the constraints and what "done" means for each part, and I review every step before it's committed. I don't hand-write the code, and I'd rather say that up front.
+
+Most of my time goes into context before anything gets built. For this assessment that meant reading the current MCP spec (2026-07-28) and checking every claim against the source instead of trusting what a model remembers. That turned up two places where the brief and the spec disagree, which I raised with your team by email before building. Where I followed the brief anyway, the README says why.
+
+Every change goes through the same gate: lint with security rules, strict typing, import rules that keep the tasks separate, and tests with a 90% branch-coverage floor. On every push, CI also runs on Linux, macOS and Windows, with dependency and malware audits, a secret scan of the full git history, and CodeQL. I check results where they land, not where the tool says they landed. That habit caught a secret scan that was passing while reading 0 bytes, and a failover that fired at 0.5 seconds instead of 3. Both only showed up when I tested real processes rather than trusting green checkmarks.
+
+The work runs on infrastructure I built and run myself: a build controller across my own servers, a record of past failures that gets checked before touching anything that has broken before, and the gate above, which every one of my projects uses.
+
+I don't keep decisions in my head. I write them down with the reasoning and the alternatives I turned down: [decisions](docs/DECISIONS.md), [threat model](docs/THREAT-MODEL.md), [build log](docs/BUILD-LOG.md). That way anyone, including me six months from now, can see why something is the way it is.
