@@ -9,3 +9,7 @@ __pycache__/
 *.db-wal
 *.db-shm
 .env
+
+# coverage data (including per-process files from subprocess measurement)
+.coverage
+.coverage.*
