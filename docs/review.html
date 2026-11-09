@@ -1,0 +1,787 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QuilrAI Build Review</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a review sheet. Diagram and detail panel side by side on wide screens, stacked on phones; task ledgers below. */
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --sunken: #eceff3;
+  --fg: #16202b;
+  --muted: #5a6675;
+  --line: #c9d0d9;
+  --accent: #0f5f74;
+  --accent-soft: #d8ecf1;
+  --zone: #b4232a;
+  --done: #237a4b;
+  --done-soft: #dcefe3;
+  --partial: #9a6a00;
+  --partial-soft: #f6ead0;
+  --planned: #6b7584;
+  --planned-soft: #e6e9ee;
+  --risk: #b4232a;
+  --risk-soft: #f6dcdd;
+  --font-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f151c; --surface: #16202a; --sunken: #1d2935; --fg: #e4e9ef; --muted: #9aa6b4; --line: #34424f;
+    --accent: #5bb8cf; --accent-soft: #163a45; --zone: #ef6b6f;
+    --done: #5fc78c; --done-soft: #183526; --partial: #e2b44a; --partial-soft: #3a2f14;
+    --planned: #9aa6b4; --planned-soft: #24303c; --risk: #ef6b6f; --risk-soft: #3d1c1f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f151c; --surface: #16202a; --sunken: #1d2935; --fg: #e4e9ef; --muted: #9aa6b4; --line: #34424f;
+  --accent: #5bb8cf; --accent-soft: #163a45; --zone: #ef6b6f;
+  --done: #5fc78c; --done-soft: #183526; --partial: #e2b44a; --partial-soft: #3a2f14;
+  --planned: #9aa6b4; --planned-soft: #24303c; --risk: #ef6b6f; --risk-soft: #3d1c1f;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 24px 64px;
+}
+.wrap { max-width: 1240px; margin: 0 auto; display: grid; gap: 28px; }
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; letter-spacing: 0.005em; }
+h1 { font-size: 30px; font-weight: 700; }
+h2 { font-size: 22px; font-weight: 600; }
+h3 { font-size: 17px; font-weight: 600; }
+p { margin: 0; }
+code, .mono { font-family: var(--font-mono); font-size: 0.88em; }
+.eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+header.top { display: grid; gap: 10px; }
+header.top .lede { color: var(--muted); max-width: 72ch; }
+.meta { display: flex; flex-wrap: wrap; gap: 8px 20px; font-family: var(--font-mono); font-size: 13px; color: var(--muted); }
+.meta b { color: var(--fg); font-weight: 500; }
+
+/* status pills */
+.pill { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 11.5px; padding: 2px 8px; border-radius: 999px; white-space: nowrap; letter-spacing: 0.02em; }
+.pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.s-done { color: var(--done); background: var(--done-soft); }
+.s-partial { color: var(--partial); background: var(--partial-soft); }
+.s-planned { color: var(--planned); background: var(--planned-soft); }
+.s-open { color: var(--risk); background: var(--risk-soft); }
+.s-external { color: var(--muted); background: transparent; border: 1px dashed var(--line); }
+
+/* progress strip */
+.progress { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+.progress button { all: unset; cursor: pointer; display: grid; gap: 6px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
+.progress button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.progress button[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.progress .t { font-family: var(--font-display); font-weight: 600; font-size: 16px; }
+.progress .pill { justify-self: start; }
+.progress .n { font-family: var(--font-mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* map + panel */
+.mapgrid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 920px) { .mapgrid { grid-template-columns: minmax(0, 1fr); } }
+.mapbox { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 14px; overflow-x: auto; }
+.mapbox svg { display: block; width: 100%; min-width: 560px; height: auto; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 10px; font-size: 12.5px; color: var(--muted); }
+svg text { font-family: var(--font-body); }
+svg .grp { fill: var(--sunken); stroke: var(--line); }
+svg .zone { fill: none; stroke: var(--zone); stroke-width: 1.6; stroke-dasharray: 6 5; }
+svg .lbl { fill: var(--muted); font-size: 11.5px; font-weight: 600; }
+svg .lbl-risk { fill: var(--risk); font-size: 11.5px; font-weight: 600; }
+svg .name { fill: var(--fg); font-size: 12.5px; font-weight: 600; }
+svg .sub { fill: var(--muted); font-size: 11px; }
+svg .wire { fill: none; stroke: var(--line); stroke-width: 1.3; }
+svg .node { cursor: pointer; }
+svg .node rect.box { stroke-width: 1.6; }
+svg .node.st-done rect.box { fill: var(--done-soft); stroke: var(--done); }
+svg .node.st-partial rect.box { fill: var(--partial-soft); stroke: var(--partial); }
+svg .node.st-planned rect.box { fill: var(--surface); stroke: var(--planned); }
+svg .node.st-external rect.box { fill: var(--surface); stroke: var(--line); stroke-dasharray: 4 3; }
+svg .node.st-standin rect.box { fill: var(--surface); stroke: var(--planned); stroke-dasharray: 4 3; }
+svg .node:hover rect.box, svg .node:focus-visible rect.box { stroke-width: 2.6; }
+svg .node.sel rect.box { stroke: var(--accent); stroke-width: 3; }
+svg .node:focus { outline: none; }
+svg .tbadge circle { fill: var(--risk); }
+svg .tbadge text { fill: #fff; font-size: 10.5px; font-weight: 700; font-family: var(--font-mono); }
+svg .bnd { cursor: pointer; }
+svg .bnd circle { fill: var(--surface); stroke: var(--zone); stroke-width: 1.8; }
+svg .bnd text { fill: var(--zone); font-size: 10.5px; font-weight: 700; font-family: var(--font-mono); }
+svg .bnd.sel circle { fill: var(--zone); }
+svg .bnd.sel text { fill: var(--surface); }
+svg .bnd:focus { outline: none; }
+svg .bnd:focus-visible circle { stroke-width: 3; }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 18px; display: grid; gap: 14px; min-width: 0; }
+.panel .head { display: grid; gap: 6px; }
+.panel .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.panel .what { color: var(--muted); }
+.threats { display: grid; gap: 10px; }
+.threat { border: 1px solid var(--line); border-left: 4px solid var(--line); border-radius: 4px; padding: 10px 12px; display: grid; gap: 6px; background: var(--bg); }
+.threat.k-done { border-left-color: var(--done); }
+.threat.k-partial { border-left-color: var(--partial); }
+.threat.k-planned { border-left-color: var(--planned); }
+.threat.k-open { border-left-color: var(--risk); }
+.threat .tt { font-weight: 600; }
+.threat dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 3px 10px; margin: 0; font-size: 13.5px; }
+.threat dt { color: var(--muted); font-family: var(--font-mono); font-size: 11.5px; padding-top: 2px; text-transform: uppercase; letter-spacing: 0.05em; }
+.threat dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.refs { display: flex; flex-wrap: wrap; gap: 6px; }
+.ref { all: unset; cursor: pointer; font-family: var(--font-mono); font-size: 12px; padding: 1px 7px; border: 1px solid var(--line); border-radius: 4px; color: var(--accent); }
+.ref:hover, .ref:focus-visible { border-color: var(--accent); }
+
+/* sections */
+section.block { display: grid; gap: 14px; }
+.blockhead { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { all: unset; cursor: pointer; font-size: 13px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+.chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.taskcard { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 18px; display: grid; gap: 16px; }
+.taskcard .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px; }
+.taskcard .cols > div { min-width: 0; display: grid; gap: 8px; align-content: start; }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; counter-reset: s; }
+.steps li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 8px; align-items: start; font-size: 14px; }
+.steps li::before { counter-increment: s; content: counter(s); font-family: var(--font-mono); font-size: 11px; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; margin-top: 1px; }
+.steps li.done::before { background: var(--done); color: var(--surface); }
+.steps li.partial::before { background: var(--partial); color: var(--surface); }
+.steps li.planned::before { border: 1px solid var(--planned); color: var(--planned); }
+.issues { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+.issues li { display: grid; gap: 3px; font-size: 14px; padding-left: 12px; border-left: 2px solid var(--partial); }
+.issues li b { font-weight: 600; }
+.issues .how { color: var(--muted); font-size: 13.5px; }
+
+table.ledger { width: 100%; border-collapse: collapse; font-size: 14px; }
+.tablebox { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
+table.ledger th, table.ledger td { text-align: left; vertical-align: top; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+table.ledger th { font-family: var(--font-mono); font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 500; background: var(--sunken); position: sticky; top: 0; }
+table.ledger tr:last-child td { border-bottom: 0; }
+table.ledger td.id { font-family: var(--font-mono); font-size: 12.5px; white-space: nowrap; color: var(--accent); }
+table.ledger td.min { min-width: 220px; }
+table.ledger .alt { color: var(--muted); font-size: 13px; margin-top: 4px; }
+table.ledger tr.flash td { background: var(--accent-soft); }
+
+details.q { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
+details.q + details.q { margin-top: 8px; }
+details.q summary { cursor: pointer; padding: 12px 14px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: baseline; font-weight: 500; list-style: none; }
+details.q summary::-webkit-details-marker { display: none; }
+details.q summary::before { content: "+"; font-family: var(--font-mono); color: var(--accent); position: absolute; margin-left: -2px; }
+details.q summary { position: relative; padding-left: 30px; }
+details.q summary::before { left: 14px; top: 12px; }
+details.q[open] summary::before { content: "\2212"; }
+details.q .ans { padding: 0 14px 14px 30px; display: grid; gap: 8px; color: var(--fg); font-size: 14px; }
+details.q .ans ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+details.q .tag { font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+.note { font-size: 13px; color: var(--muted); }
+@media (prefers-reduced-motion: no-preference) { table.ledger tr.flash td { transition: background 1.2s ease; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <p class="eyebrow">QuilrAI Solution Architect assessment · review sheet</p>
+    <h1>QuilrAI Build Review</h1>
+    <p class="lede">Every component on one map, inside and outside the trust boundary. Tap a box to see what threatens it, what defends it, the test that proves the defense, and the decisions behind it. Below the map: each task's build steps, the issues we hit, and the full decision log.</p>
+    <div class="meta" id="meta"></div>
+  </header>
+
+  <nav class="progress" id="progress" aria-label="Tasks"></nav>
+
+  <div class="mapgrid">
+    <div class="mapbox">
+      <svg id="map" viewBox="0 0 760 790" role="img" aria-label="Container view of the gateway build with trust boundaries and threat counts"></svg>
+      <div class="legend">
+        <span class="pill s-done">built and tested</span>
+        <span class="pill s-partial">partly built</span>
+        <span class="pill s-planned">planned</span>
+        <span class="pill s-external">outside, not built</span>
+        <span>Red dashed line: the gateway trust zone. <b style="color:var(--zone)">B1 to B9</b>: boundary crossings. Red dot on a box: threats tracked for it.</span>
+      </div>
+    </div>
+    <aside class="panel" id="panel" aria-live="polite"></aside>
+  </div>
+
+  <section class="block" id="tasks">
+    <div class="blockhead"><h2>Build ledger, task by task</h2><div class="chips" id="taskchips"></div></div>
+    <div id="taskcards" style="display:grid;gap:16px"></div>
+  </section>
+
+  <section class="block" id="decisions">
+    <div class="blockhead"><h2>Decision log</h2><div class="chips" id="decchips"></div></div>
+    <p class="note">Every choice we made where a reasonable person could have gone another way, what we rejected, and why. IDs match docs/DECISIONS.md in the repo.</p>
+    <div class="tablebox"><table class="ledger" id="dectable"></table></div>
+  </section>
+
+</div>
+
+<script>
+const UPDATED = "Sun Nov 8, 2026, 11:45 AM";
+const REPO = "github.com/rdmilly/quilr-gateway-assessment";
+
+const TASKS = [
+  { id: "F", name: "Foundation", status: "done", blurb: "Shared kit (errors, logging, audit, config, auth), the gate, CI and security scans." },
+  { id: "T1", name: "Task 1: MCP server", status: "done", blurb: "Customer-service MCP server over stdio with strict validation." },
+  { id: "T2", name: "Task 2: MCP gateway", status: "done", blurb: "HTTP/JSON-RPC proxy: bearer token to role, admin_ tools blocked with -32001." },
+  { id: "T3", name: "Task 3: PII guardrail", status: "done", blurb: "Streaming LLM gateway on port 8081 that redacts emails, SSNs and card numbers as the answer streams, holding back at most 256 characters." },
+  { id: "T4", name: "Task 4: limiter + failover", status: "done", blurb: "Token sliding window per tenant in SQLite (50,000 per 60 s, fail closed); primary then backup on 429 or a 3000 ms deadline, on port 8082." },
+];
+const STATUS_LABEL = { done: "built and tested", partial: "partly built", planned: "planned", open: "open risk", external: "outside, not built", standin: "test stand-in" };
+
+/* ---------- components on the map ---------- */
+const NODES = {
+  agent:   { name: "Agent or app", sub: "HTTP, Tasks 2 to 4", task: "T2", status: "external", x: 200, y: 76, w: 172, h: 56,
+             what: "Whatever calls the gateway over HTTP. Untrusted: it can send anything." },
+  host:    { name: "MCP client host", sub: "stdio, Task 1", task: "T1", status: "external", x: 388, y: 76, w: 172, h: 56,
+             what: "The program that launches the Task 1 server and talks to it over stdin and stdout, for example Claude Desktop or MCP Inspector. It skips the gateway entirely (B6)." },
+  config:  { name: "Config", sub: "config.toml, tokens", task: "F", status: "done", x: 40, y: 316, w: 104, h: 56,
+             what: "Operator-written settings, including the SHA-256 hashes of the bearer tokens. Checked at startup." },
+  logs:    { name: "Logs", sub: "stderr, JSON", task: "F", status: "done", x: 40, y: 388, w: 104, h: 56,
+             what: "One JSON object per line on stderr. Read by more people than run the gateway, so secrets are redacted before they are written." },
+  task1:   { name: "Task 1 server", sub: "stdio, 2 tools", task: "T1", status: "done", x: 616, y: 252, w: 104, h: 64,
+             what: "get_customer_record and trigger_refund behind strict Pydantic models. Answers MCP 2026-07-28 and 2025-11-25. Its own validation is its only protection, because over stdio nothing sits in front of it." },
+  mockmcp: { name: "MCP server", sub: "Task 2 mock", task: "T2", status: "done", x: 616, y: 436, w: 104, h: 56,
+             what: "mocks/mcp_server.py: a real MCP server on the official SDK over Streamable HTTP, with lookup_order and admin_reset_key. It records the headers of every request it receives so tests can prove what the gateway passed on and what it did not." },
+  http:    { name: "HTTP server", sub: "", task: "T2", status: "done", x: 216, y: 240, w: 154, h: 32,
+             what: "task2_mcp_gateway/app.py on Starlette and Uvicorn. One route, POST /mcp. Checks run cheapest first: Origin, token, content type, size, parse, headers, policy, then forward." },
+  identity:{ name: "Identity", sub: "", task: "F", status: "done", x: 390, y: 240, w: 154, h: 32,
+             what: "Turns Authorization: Bearer <token> into a subject and a role (admin or viewer). Built in shared/auth.py and wired into the gateway, which checks it before reading the body." },
+  kconfig: { name: "Config", sub: "", task: "F", status: "done", x: 216, y: 328, w: 96, h: 32, what: "shared/config.py: typed, frozen settings sections; errors name the field, never the value." },
+  klog:    { name: "Logging", sub: "", task: "F", status: "done", x: 332, y: 328, w: 96, h: 32, what: "shared/logs.py: JSON lines to stderr with secret redaction." },
+  kerr:    { name: "Errors", sub: "", task: "F", status: "done", x: 448, y: 328, w: 96, h: 32, what: "shared/errors.py: JSON-RPC error builder and the one gateway error envelope, with safe default messages." },
+  audit:   { name: "Audit", sub: "", task: "F", status: "done", x: 216, y: 372, w: 328, h: 28, what: "shared/audit.py: one OCSF 1.9.0 API Activity record per allow, deny or redact decision, hash-chained so edits or deletions in the middle are detectable." },
+  parser:  { name: "Parser", sub: "", task: "T2", status: "done", x: 216, y: 448, w: 96, h: 32, what: "Reads the JSON-RPC body exactly once, strictly: rejects batches and duplicate keys, then forwards the re-serialized parsed message." },
+  policy:  { name: "Policy", sub: "", task: "T2", status: "done", x: 332, y: 448, w: 96, h: 32, what: "Decides whether this role may call this tool. admin_ tools need the admin role, otherwise -32001 Unauthorized Tool Call without touching downstream." },
+  proxy:   { name: "mcp_proxy", sub: "", task: "T2", status: "done", x: 448, y: 448, w: 96, h: 32, what: "task2_mcp_gateway/proxy.py: forwards the parsed message to the one configured server with only the headers MCP needs, adds X-Gateway-Subject and X-Gateway-Role, and streams the reply (JSON or SSE) back as it arrives." },
+  limit:   { name: "rate_limit", sub: "", task: "T4", status: "done", x: 216, y: 536, w: 96, h: 32, what: "task4_rate_limit_failover/limiter.py and estimate.py: token-aware sliding window per tenant, 50,000 tokens per 60 s. Reserves an upper-bound estimate (UTF-8 bytes / 4 plus max_tokens, times n) inside one BEGIN IMMEDIATE transaction, then settles to the provider's usage.total_tokens, or refunds when no provider answered. Fails closed: 503 and no provider call if the store cannot be used. Retry-After is the exact wait." },
+  router:  { name: "llm_router", sub: "", task: "T4", status: "done", x: 332, y: 536, w: 96, h: 32, what: "task4_rate_limit_failover/router.py behind POST /v1/chat/completions on port 8082. Calls the primary; on a 429, or no answer within 3000 ms (the whole body, or headers and first chunk for a stream), it closes that attempt and calls the backup. 5xx and refused connections return 502 unless failover_on_errors is on. One clock, anyio.fail_after, decides." },
+  pii:     { name: "pii_guard", sub: "", task: "T3", status: "done", x: 448, y: 536, w: 96, h: 32, what: "task3_pii_guardrail on port 8081: one StreamRedactor per choice and per tool call's arguments. Text that cannot be part of a match is sent at once; only a possible match is held, at most 256 characters. Non-streamed answers are redacted too. Median 5 us added per chunk." },
+  sqlite:  { name: "SQLite", sub: "file, WAL", task: "T4", status: "done", x: 212, y: 632, w: 96, h: 56, what: "On-disk file in WAL mode, one row per request (tenant, time, tokens), one connection per operation. Expired rows are evicted in the same transaction, so the table holds about one window of traffic. Missing, corrupt, tampered with or locked past the 5 s busy timeout means 503." },
+  primary: { name: "Primary", sub: "model", task: "T3", status: "standin", x: 344, y: 632, w: 92, h: 56, what: "mocks/llm_provider.py on port 9100. Echoes the last user message; the model field picks a failure (mock-429, mock-stall, mock-500) and mock.chunk_chars splits the stream into tiny chunks. Its 500 carries a stack trace, a file path and an internal IP so tests can prove none of it leaks." },
+  backup:  { name: "Backup", sub: "model", task: "T4", status: "standin", x: 452, y: 632, w: 92, h: 56, what: "The same mock run a second time on port 9101 with a fixed behavior (MOCK_LLM_BEHAVIOR=mock-echo), so the primary can fail while the backup answers the very same request." },
+  build:   { name: "Build and CI", sub: "B9, supply chain", task: "F", status: "done", x: 600, y: 632, w: 136, h: 56, what: "Everything that turns source into a running program: dependencies, the lock file, GitHub Actions. Attacks here bypass every runtime defense, so the gate checks it on every push." },
+};
+
+/* ---------- trust boundary crossings ---------- */
+const BOUNDS = {
+  B1: { cx: 286, cy: 176, name: "Caller to gateway", task: "T2", what: "Untrusted HTTP requests enter the trust zone. Every byte is checked: size, content type, Origin, bearer token, then the JSON-RPC body." },
+  B2: { cx: 576, cy: 464, name: "Gateway to MCP server", task: "T2", what: "Allowed calls leave for the downstream server. The gateway must not pass the caller's token through, and must not trust the reply blindly." },
+  B3: { cx: 380, cy: 600, name: "Gateway to primary model", task: "T3", what: "Third-party output re-enters the zone. It can carry PII and its errors can leak internals." },
+  B4: { cx: 416, cy: 600, name: "Gateway to backup model", task: "T4", what: "Same as B3 for the backup. Failover must not charge twice or answer twice." },
+  B5: { cx: 264, cy: 600, name: "Gateway to SQLite", task: "T4", what: "The limiter's state on disk. Anyone with disk access could change it, so the limiter fails closed if the store is broken." },
+  B6: { cx: 690, cy: 236, name: "Client host to Task 1 server", task: "T1", what: "The one arrow that skips the gateway. Over stdio the server's own validation is its only protection, and stdout must carry nothing but JSON-RPC." },
+  B7: { cx: 184, cy: 410, name: "Gateway to logs", task: "F", what: "Data leaves the zone for people who read logs. Secrets and PII must be redacted first; log lines must not be forgeable." },
+  B8: { cx: 184, cy: 344, name: "Config to gateway", task: "F", what: "Operator input enters the zone. Validated at startup; tokens are stored as hashes, never in plain text." },
+  B9: { cx: 600, cy: 618, name: "Build and supply chain", task: "F", what: "Code and dependencies entering the build. Covered by the gate and CI scans on every push." },
+};
+
+/* ---------- threats, attached to components or boundaries ---------- */
+// status: done = defended and tested; partial = defended, not fully tested; planned = defense designed, not built; open = known gap, accepted or deferred
+const THREATS = [
+  // Task 1
+  { on: ["task1","B6"], task: "T1", title: "Malformed or extra arguments reach the refund code", owasp: "LLM05 improper output handling, ASI02 tool misuse",
+    defense: "One strict Pydantic model per tool: no type coercion, unknown fields rejected, ASCII-only CUST-[0-9]{5}, finite positive amount with at most two decimals, reason 10 to 500 visible characters. A failure is -32602 and the tool never runs.",
+    proof: "tests/task1/test_schemas.py (62 cases + 3 property tests), test_tools.py::test_bad_arguments_never_reach_the_tool", status: "done", decisions: ["D7","D4"] },
+  { on: ["task1","B6"], task: "T1", title: "Lookalike input passes the ID check", owasp: "Input validation",
+    defense: "Pattern runs in Rust regex where $ is the true end and [0-9] is ASCII only, so a trailing newline, full-width or Arabic-Indic digits are rejected.",
+    proof: "test_schemas.py::test_malformed_customer_ids_are_rejected", status: "done", decisions: ["D7"] },
+  { on: ["task1"], task: "T1", title: "Invisible or reordered text hides what a refund reason says", owasp: "Prompt injection carrier, reviewer deception",
+    defense: "reason rejects control, format (zero-width, bidi override), surrogate, private-use and unassigned characters, and counts length after trimming.",
+    proof: "test_schemas.py::test_invalid_reasons", status: "done", decisions: ["D7"] },
+  { on: ["task1","B6"], task: "T1", title: "Something writes to stdout and corrupts the protocol", owasp: "Availability, protocol integrity",
+    defense: "Four layers: logging to stderr; sys.stdout pointed at stderr while serving (catches buffered print); SDK diverts descriptor 1 (catches C code and os.write); a real-process test parses every byte of stdout.",
+    proof: "test_stdio.py::test_stray_print_cannot_corrupt_stdout, test_importing_the_server_writes_nothing_to_stdout", status: "done", decisions: ["D14"] },
+  { on: ["task1","B6"], task: "T1", title: "Client waits forever: dropped replies", owasp: "Availability",
+    defense: "transport.py answers garbage with -32700, non-messages and batches with -32600, requests with a null or object id with -32600, and drains in-flight requests when stdin closes (10 s cap).",
+    proof: "test_transport.py, test_stdio.py::test_unreadable_lines_get_errors_and_the_server_keeps_going, ::test_request_with_invalid_id_gets_invalid_request, ::test_full_session_over_pipes", status: "done", decisions: ["D10","D11","D12","D13"] },
+  { on: ["task1"], task: "T1", title: "Error replies echo secrets back", owasp: "LLM02 sensitive information disclosure",
+    defense: "error.data lists field names and error types only, never the rejected values; capped at 20 errors and 100-character field names.",
+    proof: "test_tools.py::test_error_data_names_fields_but_never_echoes_values, ::test_flood_of_unknown_fields_gets_a_short_answer", status: "done", decisions: ["D9"] },
+  { on: ["task1"], task: "T1", title: "A crash leaks internals", owasp: "Information disclosure",
+    defense: "Any unexpected exception becomes -32603 Internal error with a fixed message; the detail goes to the stderr log only.",
+    proof: "test_tools.py::test_unexpected_failure_is_a_generic_internal_error", status: "done", decisions: ["D9"] },
+  { on: ["task1"], task: "T1", title: "Two refunds spend the same balance", owasp: "Race condition",
+    defense: "Balance check and update happen under one lock; money is Decimal so repeated small refunds are exact.",
+    proof: "test_tools.py::test_concurrent_refunds_cannot_overspend (50 threads, exactly 12 of 10.00 succeed from 120.00), ::test_refund_reduces_the_balance_exactly", status: "done", decisions: ["D15"] },
+  { on: ["task1"], task: "T1", title: "An agent retries trigger_refund and pays twice", owasp: "ASI02 tool misuse, unsafe tool execution",
+    defense: "Optional idempotency key: a retry with the same key returns the original receipt; a reused key with different arguments is refused; checked under the balance lock. Tool also annotated destructive. Keys are in memory, so a restart forgets them.",
+    proof: "test_tools.py::test_retry_with_the_same_key_refunds_once, ::test_concurrent_retries_with_one_key_pay_once, ::test_same_key_for_a_different_refund_is_refused", status: "done", decisions: ["D16"] },
+  { on: ["task1","B6"], task: "T1", title: "Anyone who can start the server can call it", owasp: "Authentication",
+    defense: "By design. Over stdio only the parent process can talk to the server, and the spec says stdio servers take credentials from the environment, not the HTTP auth flow. Authentication lives in the Task 2 gateway.",
+    proof: "MCP 2026-07-28, Auth section", status: "open", decisions: ["D2"] },
+
+  // Foundation
+  { on: ["identity","B1"], task: "F", title: "Token guessed by timing the comparison", owasp: "ASI03 identity and privilege abuse",
+    defense: "Tokens stored as SHA-256 hashes and compared with hmac.compare_digest against every entry, so timing does not reveal which entry matched or how much.",
+    proof: "tests/shared/test_auth.py", status: "done", decisions: ["D23"] },
+  { on: ["identity","B1"], task: "F", title: "Oversized or malformed Authorization header", owasp: "Input validation, DoS",
+    defense: "4096-character cap and a strict Bearer pattern before any lookup.",
+    proof: "tests/shared/test_auth.py", status: "done", decisions: ["D23"] },
+  { on: ["logs","klog","B7"], task: "F", title: "Secrets end up in logs", owasp: "LLM02 sensitive information disclosure",
+    defense: "Message and fields are scrubbed for bearer and basic credentials, JWTs, API keys and GitHub tokens; keys like authorization or password are always redacted.",
+    proof: "tests/shared/test_logs.py", status: "done", decisions: [] },
+  { on: ["logs","klog","B7"], task: "F", title: "Forged log lines", owasp: "Log injection",
+    defense: "Every record is one JSON object with ASCII escaping, so a newline in input cannot start a fake line, and extra fields cannot overwrite level, time or logger.",
+    proof: "tests/shared/test_logs.py", status: "done", decisions: [] },
+  { on: ["audit"], task: "F", title: "Audit records edited or deleted after the fact", owasp: "Repudiation",
+    defense: "Each record carries the hash of the previous one; verify_chain finds edits, insertions and deletions in the middle. Cutting off the tail is not detectable without an external anchor; documented.",
+    proof: "tests/shared/test_audit.py", status: "partial", decisions: ["D24"] },
+  { on: ["config","kconfig","B8"], task: "F", title: "Bad config, or config errors that print secrets", owasp: "Misconfiguration",
+    defense: "Frozen, typed sections with unknown keys rejected; error messages name the field and never include the value.",
+    proof: "tests/shared/test_config.py", status: "done", decisions: [] },
+  { on: ["build","B9"], task: "F", title: "Malicious or vulnerable dependency", owasp: "ASI04 supply chain, LLM03",
+    defense: "Locked dependencies, a one-week cooldown on new versions, uv malware check, uv audit and pip-audit in CI, Dependabot alerts.",
+    proof: "CI supply-chain job; Dependabot shows 0 open alerts", status: "done", decisions: ["D20"] },
+  { on: ["build","B9"], task: "F", title: "Secret committed to the repo", owasp: "Credential exposure",
+    defense: "Betterleaks scans the working tree locally and the full git history in CI; GitHub secret scanning and push protection are on.",
+    proof: "CI secrets job scanned about 377 KB with no leaks; GitHub shows 0 open alerts", status: "done", decisions: ["D21"] },
+  { on: ["build","B9"], task: "F", title: "Hijacked or over-privileged CI workflow", owasp: "CI/CD compromise",
+    defense: "Actions pinned to commit SHAs, credentials not persisted after checkout, read-only default permissions, zizmor and CodeQL on the workflows.",
+    proof: "CI workflows job; CodeQL 0 results", status: "done", decisions: ["D20"] },
+
+  // Task 2
+  { on: ["policy","B1"], task: "T2", title: "Admin tool reached by name tricks", owasp: "ASI03 privilege abuse",
+    defense: "Names outside the MCP character set (SEP-986) are refused with -32602, so look-alike letters, full-width letters and invisible characters never reach the admin check; the admin_ check ignores case.", proof: "test_gateway.py::test_names_outside_the_mcp_character_set_are_refused, ::test_admin_tool_check_ignores_case; test_rules.py::test_tool_name_character_set", status: "done", decisions: ["T2-D14","T2-D3"] },
+  { on: ["parser","B1"], task: "T2", title: "Gateway and server read the same message differently", owasp: "Parser differential",
+    defense: "Reject duplicate keys and batches, then forward the message re-serialized from what the gateway parsed, never the raw bytes.", proof: "test_gateway.py::test_unreadable_bodies_are_refused_before_policy (duplicate keys, batches, NaN); test_rules.py::test_invalid_messages", status: "done", decisions: ["T2-D4"] },
+  { on: ["policy"], task: "T2", title: "Admin call smuggled as a notification", owasp: "Authorization bypass",
+    defense: "Authorize tools/call notifications too. A denied one is never forwarded: it gets HTTP 403 and a JSON-RPC error with no id, not 202.", proof: "test_gateway.py::test_denied_tool_call_notification_is_refused_not_forwarded", status: "done", decisions: ["T2-D12"] },
+  { on: ["proxy","B2"], task: "T2", title: "Caller's token passed through to the downstream server", owasp: "MCP token passthrough, confused deputy",
+    defense: "Strip the caller's Authorization header; send the verified subject and role in gateway headers instead.", proof: "test_gateway.py::test_caller_token_is_not_passed_downstream (no Authorization or Cookie downstream; gateway headers present)", status: "done", decisions: ["T2-D5"] },
+  { on: ["proxy","B2"], task: "T2", title: "Caller steers the gateway to another host", owasp: "SSRF",
+    defense: "One fixed downstream URL from config; nothing in the request can change it.", proof: "Downstream URL only from config; test_gateway.py::test_downstream_url_must_be_http_with_a_host", status: "done", decisions: ["T2-D5"] },
+  { on: ["http","B1"], task: "T2", title: "Headers say one tool, body says another", owasp: "Request smuggling",
+    defense: "On 2026-07-28 requests the routing headers (MCP-Protocol-Version, Mcp-Method, and Mcp-Name where it applies) must be present, well-formed and equal to the body, otherwise HTTP 400 and -32020. Older versions: only headers that are present are checked.", proof: "test_gateway.py::test_header_that_disagrees_with_body_is_refused, ::test_method_header_that_disagrees_is_refused", status: "done", decisions: ["T2-D6","T2-D13"] },
+  { on: ["http","B1"], task: "T2", title: "Huge or slow request ties up the gateway", owasp: "LLM10 unbounded consumption",
+    defense: "Content-Length checked first, then the body counted while reading (1 MiB cap); upstream timeout with a clean 504.", proof: "test_gateway.py::test_oversized_body_is_413, ::test_chunked_body_over_the_limit_is_cut_off, ::test_downstream_failure_is_a_clean_error", status: "done", decisions: [] },
+
+  { on: ["http","identity","B1"], task: "T2", title: "Caller without a valid token reaches the server", owasp: "Authentication",
+    defense: "Bearer token checked before the body is read; 401 with WWW-Authenticate otherwise, and nothing is forwarded.",
+    proof: "test_gateway.py::test_missing_or_bad_token_is_401_and_nothing_is_forwarded", status: "done", decisions: ["T2-D7","D23"] },
+  { on: ["identity","B1"], task: "T2", title: "Token issued for another service, or forged, accepted (JWT mode)", owasp: "MCP token passthrough, ASI03",
+    defense: "Optional JWT mode, off by default, accepts only HS256 tokens whose issuer and audience match config, unexpired, with exp, iat and sub present; algorithm pinned; secret from an environment variable, at least 32 bytes.",
+    proof: "tests/shared/test_auth_jwt.py; test_gateway.py::test_gateway_accepts_jwts_issued_for_it_and_refuses_others", status: "done", decisions: ["T2-D15","D23"] },
+  { on: ["http","B1"], task: "T2", title: "A web page drives a local gateway (DNS rebinding)", owasp: "Cross-origin abuse",
+    defense: "A request with an Origin not on the allow list gets 403; Origin is never forwarded. Agents send no Origin.",
+    proof: "test_gateway.py::test_unknown_origin_is_403_and_allowed_origin_passes", status: "done", decisions: [] },
+  { on: ["proxy","B2"], task: "T2", title: "Upstream failure leaks internals", owasp: "Information disclosure",
+    defense: "Fixed messages with 502 or 504 and the caller's id; the exception text is never returned.",
+    proof: "test_gateway.py::test_downstream_failure_is_a_clean_error", status: "done", decisions: [] },
+  { on: ["audit","policy"], task: "T2", title: "Tool call decisions cannot be reviewed later", owasp: "Repudiation",
+    defense: "One hash-chained OCSF record per allowed or denied tools/call with subject, role and tool. Decisions only, never arguments.",
+    proof: "test_gateway.py::test_every_tool_call_decision_is_audited", status: "done", decisions: ["D24"] },
+  { on: ["policy","proxy"], task: "T2", title: "Client never learns why it was refused", owasp: "Protocol integrity",
+    defense: "-32001 travels with HTTP 200 so MCP clients surface the code; the SDK client turns any non-2xx into a generic error.",
+    proof: "test_sdk_client.py::test_viewer_gets_32001_from_the_sdk_client (both protocols, SSE and JSON)", status: "done", decisions: ["T2-D8"] },
+  { on: ["proxy"], task: "T2", title: "Viewer learns admin tool names from tools/list", owasp: "Information disclosure",
+    defense: "Accepted: the brief asks for transparent forwarding. Filtering admin tools for viewers is a production option.",
+    proof: "test_gateway.py::test_tools_list_is_forwarded_transparently", status: "open", decisions: ["T2-D9"] },
+  { on: ["mockmcp","B2"], task: "T2", title: "Someone who can reach the server directly forges the gateway's identity headers", owasp: "Spoofing",
+    defense: "The server must only be reachable from the gateway (private network or mTLS). Not enforceable from the gateway; documented.",
+    proof: "README, Decisions worth knowing", status: "open", decisions: ["T2-D5"] },
+
+  // Task 3
+  { on: ["pii","B3"], task: "T3", title: "PII split across chunks slips through", owasp: "LLM02 sensitive information disclosure",
+    defense: "Holdback buffer with partial matching plus an anchored \"could it still grow\" check; one redactor per choice and per tool call.",
+    proof: "test_redactor.py property tests (any split equals whole-text redaction; PII never survives); 139,000 offline random cases, zero mismatches", status: "done", decisions: ["T3-D1","T3-D4"] },
+  { on: ["pii"], task: "T3", title: "Obfuscated digits (full-width, other scripts)", owasp: "Evasion",
+    defense: "Unicode-aware \\d and \\w in the patterns; Luhn runs over Unicode digits. No normalized shadow copy, so no offsets to map back.",
+    proof: "test_patterns.py (full-width SSN, full-width Luhn)", status: "done", decisions: ["T3-D2"] },
+  { on: ["pii","B3"], task: "T3", title: "\"stream\": false bypasses the guardrail", owasp: "LLM02",
+    defense: "Non-streamed answers are redacted too, including tool call arguments and legacy text.",
+    proof: "test_endpoint.py::test_non_streamed_answer_is_redacted_too; test_completions.py", status: "done", decisions: ["T3-D3"] },
+  { on: ["pii"], task: "T3", title: "PII in tool call arguments", owasp: "LLM02, ASI02",
+    defense: "Arguments are redacted per tool call, the same way as content.",
+    proof: "test_endpoint.py::test_tool_call_arguments_are_redacted", status: "done", decisions: ["T3-D4"] },
+  { on: ["pii","B3"], task: "T3", title: "Buffering kills time to first token", owasp: "Latency",
+    defense: "Only possible matches are held; median 5 us added per chunk. Over real sockets the first text arrives about 20 ms into an 840 ms stream.",
+    proof: "test_processes.py::test_first_text_arrives_long_before_the_provider_finishes; bench.py", status: "done", decisions: ["T3-D1"] },
+  { on: ["pii","B3"], task: "T3", title: "A huge or endless event exhausts memory", owasp: "LLM10 unbounded consumption",
+    defense: "Held text capped at 256 characters per stream; an SSE event over 1 MiB cuts the stream; non-streamed answers capped at 8 MiB.",
+    proof: "test_redactor.py::test_held_text_never_exceeds_the_cap; test_failures.py::test_oversized_event_cuts_the_stream", status: "done", decisions: ["T3-D1"] },
+  { on: ["pii","B3"], task: "T3", title: "Held half of a card number leaks when the stream breaks", owasp: "LLM02",
+    defense: "On a broken stream nothing more is sent; held text is only released when the stream ends normally.",
+    proof: "test_failures.py::test_stream_that_breaks_midway_is_closed_cleanly", status: "done", decisions: ["T3-D4"] },
+  { on: ["router","B3"], task: "T3", title: "Provider error leaks internals", owasp: "Information disclosure",
+    defense: "Provider error bodies are never read; a fixed error envelope goes back, keeping Retry-After on 429.",
+    proof: "test_endpoint.py::test_provider_errors_are_sanitized", status: "done", decisions: ["T3-D5"] },
+  { on: ["B3"], task: "T3", title: "Caller's key forwarded to the provider", owasp: "Token passthrough",
+    defense: "The provider gets the gateway's key from the environment; the caller's Authorization is never forwarded.",
+    proof: "test_endpoint.py::test_provider_gets_the_gateway_key_never_the_callers", status: "done", decisions: [] },
+  { on: ["pii"], task: "T3", title: "PII spelled out in words, or names and phone numbers", owasp: "Coverage gap",
+    defense: "Out of scope; documented in the README. The brief lists emails, SSNs and card numbers only.",
+    proof: "README, Known limits", status: "open", decisions: ["T3-D2"] },
+
+  // Task 4
+  { on: ["limit","sqlite","B5"], task: "T4", title: "Concurrent requests overshoot the token budget", owasp: "LLM10 unbounded consumption",
+    defense: "Check and reserve inside one BEGIN IMMEDIATE transaction, then settle to real usage.",
+    proof: "test_limiter.py::test_fifty_concurrent_requests_never_overshoot (50 threads at 2,000 tokens, exactly 25 approved); mutation run without the transaction: 88,000 of 50,000", status: "done", decisions: ["D25","T4-D1"] },
+  { on: ["limit","sqlite","B5"], task: "T4", title: "Limiter store broken, tampered or locked", owasp: "Fail-open",
+    defense: "Every store error becomes 503 and no provider call: missing, corrupt, tampered with, or locked past the 5 s busy timeout.",
+    proof: "Tests for a missing directory, a corrupt file, a dropped table and a held lock, at the limiter and at the endpoint", status: "done", decisions: ["T4-D2"] },
+  { on: ["limit"], task: "T4", title: "Estimate gamed with non-English text", owasp: "LLM10",
+    defense: "Count UTF-8 bytes, not characters, then settle to real usage.",
+    proof: "test_estimate.py::test_non_ascii_text_is_not_undercounted", status: "done", decisions: ["T4-D1"] },
+  { on: ["router","B3","B4"], task: "T4", title: "Failover answers twice or leaks a connection", owasp: "Race condition",
+    defense: "One clock (fail_after) per attempt; the half-open response is closed on every path, cancellation included, before the backup runs.",
+    proof: "test_failures.py::test_timed_out_attempt_closes_before_the_backup_runs, ::test_cancelled_attempt_closes_the_half_open_response", status: "done", decisions: ["T4-D6","T4-D5"] },
+  { on: ["router","limit"], task: "T4", title: "Failover charges twice", owasp: "Billing integrity",
+    defense: "The router never touches the limiter; the endpoint does one reserve and one settle per request.",
+    proof: "test_endpoint.py::test_failover_charges_once", status: "done", decisions: ["T4-D1"] },
+  { on: ["router","limit"], task: "T4", title: "Client hangs up mid-route and is billed", owasp: "Billing integrity",
+    defense: "The reservation is refunded on cancellation, and the provider response is closed on that path too.",
+    proof: "test_endpoint.py::test_client_leaving_mid_route_refunds_the_reservation", status: "done", decisions: ["T4-D1"] },
+  { on: ["router","B3","B4"], task: "T4", title: "Stalled provider holds connections forever", owasp: "Resource exhaustion",
+    defense: "3000 ms first-chunk deadline, then a stream idle cut-off (stream_idle_timeout_s), then the HTTP client's own timeout as a backstop above both.",
+    proof: "tests/task4/test_processes.py (failover at 3.05 s on real sockets, idle cut-off)", status: "done", decisions: ["T4-D5","T4-D6"] },
+  { on: ["router","kerr"], task: "T4", title: "Upstream error leaks stack traces or internals", owasp: "Information disclosure",
+    defense: "Provider error bodies are never read, only the status and Retry-After; fixed messages in one envelope {error:{type,code,message,request_id}}.",
+    proof: "test_endpoint.py::test_provider_error_details_never_reach_the_client", status: "done", decisions: ["T4-D4"] },
+  { on: ["router","B3","B4"], task: "T4", title: "Caller's key forwarded to a provider", owasp: "Token passthrough",
+    defense: "Provider keys come from the gateway's environment only; the caller's bearer token is never forwarded.",
+    proof: "test_endpoint.py::test_provider_keys_are_the_gateways_never_the_callers", status: "done", decisions: [] },
+  { on: ["router","audit"], task: "T4", title: "Prompt text written to logs", owasp: "Sensitive data in logs",
+    defense: "The audit record holds counts and the route taken (for example primary:rate_limited,backup:ok), never content.",
+    proof: "test_endpoint.py::test_every_request_is_audited_with_counts_not_content", status: "done", decisions: [] },
+  { on: ["limit","sqlite"], task: "T4", title: "One database file for a fleet", owasp: "Scale",
+    defense: "Documented: fine for one host, wrong for several. The same reserve and settle logic would move to Redis (a Lua script) or Postgres (SELECT ... FOR UPDATE).",
+    proof: "README, Known limits", status: "open", decisions: ["D25"] },
+];
+
+/* ---------- decisions ---------- */
+const DECISIONS = [
+  { id: "D1", task: "F", title: "Follow the brief exactly on anything a test could see", chose: "Match every behavior the brief describes; put extra effort into proof (tests, scans), reasoning (decisions, threat model) and presentation.", rejected: "Building our own preferred behavior where the brief and current practice differ.", why: "Graders check what the brief says. Disagreements go in the README with the reason, so the judgment still shows." },
+  { id: "D2", task: "F", title: "Python and the official MCP SDK (mcp 2.3.0)", chose: "Python throughout, official SDK, latest release.", rejected: "TypeScript.", why: "One language across all four tasks; Pydantic is named in the brief; 2.3.0 is the newest release (checked on PyPI)." },
+  { id: "D3", task: "F", title: "Target MCP 2026-07-28, still accept 2025-11-25", chose: "Serve both protocol versions; every client test runs on both.", rejected: "Only the newest version.", why: "2026-07-28 is current, but most clients still speak 2025-11-25." },
+  { id: "D4", task: "T1", title: "Bad arguments are JSON-RPC -32602, not isError", chose: "-32602 Invalid params with one entry per bad field.", rejected: "isError tool results, which SEP-1303 (Final) and the current spec prefer.", why: "The brief explicitly asks for standard JSON-RPC error codes. README explains the difference; switching is one function." },
+  { id: "D5", task: "T2", title: "Unauthorized tool call is -32001", chose: "Use -32001 exactly as the brief says.", rejected: "A code outside the legacy range.", why: "The spec says new implementations SHOULD NOT use -32000 to -32019 (verified on the official spec page). The brief names the code, so we follow it and document the conflict; we raised it by email." },
+  { id: "D6", task: "T1", title: "Low-level Server instead of the decorator API", chose: "mcp.server.Server with our own dispatcher.", rejected: "MCPServer (decorators).", why: "The decorator API turns validation failures into isError results, the opposite of what the brief asks." },
+  { id: "D7", task: "T1", title: "Validation stricter than the brief's minimum", chose: "Two decimal places, reason 10 to 500 characters counted after trimming, invisible characters rejected, ASCII-only IDs.", rejected: "Only 'positive float' and 'min length 10'.", why: "A refund cannot be a fraction of a cent, unbounded input is a risk, and ten invisible characters should not count as a reason. Graders' likely tests (zero, negative, string, missing) behave exactly per the brief." },
+  { id: "D8", task: "T1", title: "Business failures are isError results", chose: "Unknown customer and refund over balance return a normal result with isError: true.", rejected: "JSON-RPC errors.", why: "The call was valid; the agent should read the outcome and decide. Matches the spec's split between protocol and execution errors." },
+  { id: "D9", task: "T1", title: "Errors never echo the rejected value", chose: "Field names and error types only; generic -32603 on crashes.", rejected: "Pydantic's default messages, which include the input.", why: "A secret pasted into the wrong field should not come back or reach the log." },
+  { id: "D10", task: "T1", title: "Drain in-flight requests when stdin closes", chose: "Hold the server open until every received request is answered, 10 s cap.", rejected: "SDK default (stop immediately) or waiting forever.", why: "Known SDK bug python-sdk #2678; printf | server printed nothing. The cap stops a stuck request keeping the process alive." },
+  { id: "D11", task: "T1", title: "Answer unreadable lines", chose: "-32700 for non-JSON, -32600 for non-messages and batches.", rejected: "SDK default: silent drop.", why: "JSON-RPC 2.0 requires a reply; silence leaves the client waiting." },
+  { id: "D12", task: "T1", title: "Parse errors carry \"id\": null", chose: "JSON-RPC 2.0 rule: null when the id cannot be read.", rejected: "Omitting id, which MCP's schema suggests.", why: "The two specs disagree. MCP says every message follows JSON-RPC 2.0, and the official Python SDK's error type allows null." },
+  { id: "D13", task: "T1", title: "Requests with a null id get -32600", chose: "Screen raw lines before the SDK and replace such requests with an invalid message.", rejected: "Documenting it as a gap.", why: "MCP: request ids MUST NOT be null. Trade-off: passing our own input stream means the SDK no longer redirects descriptor 0; only matters to tools that spawn child processes reading stdin, and ours spawn none." },
+  { id: "D14", task: "T1", title: "Point sys.stdout at stderr while serving", chose: "Swap inside the stdio context, flush first, restore after.", rejected: "Relying on the SDK's descriptor diversion alone.", why: "Python buffers print(); the buffer flushed at exit after the SDK restored stdout, so text hit the wire. Found by test." },
+  { id: "D15", task: "T1", title: "Money as Decimal", chose: "Validate as float (the brief's type), compute in Decimal.", rejected: "Float arithmetic.", why: "Three refunds of 0.10 must take off exactly 0.30." },
+  { id: "D16", task: "T1", title: "Optional idempotency key on trigger_refund", chose: "An optional idempotency_key; a retry with the same key and arguments returns the original receipt, a reused key with different arguments is refused. Kept in memory, newest 10,000 keys.", rejected: "Leaving duplicate refunds to the client, or making the key required.", why: "Agents retry after timeouts, and a duplicate refund is real money (OWASP ASI02, tool misuse). Optional keeps the brief's three inputs and behavior unchanged." },
+  { id: "D17", task: "F", title: "Python 3.12 to 3.14", chose: "requires-python >=3.12,<3.15.", rejected: "Including 3.15.", why: "pytest and mypy did not run on 3.15 in November 2026 (CI showed it)." },
+  { id: "D18", task: "F", title: "CI on Linux, macOS and Windows", chose: "Gate on all three; Windows fixes capped at 30 minutes for Task 1.", rejected: "Linux only; or adding Windows at the end.", why: "Graders run it on their own laptops. Adding Windows late would land four tasks' worth of platform fixes on deadline day." },
+  { id: "D20", task: "F", title: "The gate", chose: "uv lock check, ruff with security rules, ruff format, mypy strict, pytest with 90% branch-coverage floor (subprocesses measured), zizmor, Betterleaks; CI adds malware check, uv audit, pip-audit, full-history secret scan and CodeQL.", rejected: "Semgrep and gitleaks from the original plan.", why: "Ruff's S rules cover the Bandit checks, CodeQL covers deeper analysis, and Betterleaks is the maintained successor to gitleaks." },
+  { id: "D21", task: "F", title: "Repo public early; alert access read-only", chose: "Public now so GitHub's scanners run while we build; token reads alerts but cannot dismiss them.", rejected: "Private until submission; write access.", why: "GitHub's free security scanning needs a public repo. An agent that can dismiss findings could hide them." },
+  { id: "D22", task: "F", title: "Cards never import each other", chose: "Shared kit plus one folder per task; tasks do not import each other.", rejected: "One big package.", why: "Graders can review each task alone; deleting one lane leaves the others working. Enforced by import-linter once a second task exists." },
+  { id: "D23", task: "F", title: "Static hashed token map, constant-time compare", chose: "Config holds SHA-256 hashes of tokens with subject and role.", rejected: "JWT as the default; plain tokens in config.", why: "Simplest thing that meets 'read a bearer token, extract the role' without storing secrets. JWT mode is an optional extra." },
+  { id: "D24", task: "F", title: "OCSF audit events, hash-chained", chose: "OCSF 1.9.0 API Activity (class 6003) per decision.", rejected: "Ad hoc log lines.", why: "OCSF is the open schema SIEM tools ingest, so every allow, deny and redact decision drops straight into a SOC without custom parsing." },
+  { id: "D25", task: "T4", title: "SQLite with explicit transactions", chose: "sqlite3.connect(..., autocommit=True) plus an explicit BEGIN IMMEDIATE, one connection per operation, WAL mode.", rejected: "Python's default transaction handling, or one shared connection.", why: "With the default, a manual BEGIN fails. BEGIN IMMEDIATE takes the write lock before the first read, so check-and-reserve is atomic whatever order the statements come in. One connection per call because the endpoint calls the limiter from a thread pool and sqlite3 connections must not cross threads; SQLite's own lock does the serializing, which also covers several processes on one file. Proof: 50 threads racing for 50,000 tokens at 2,000 each get exactly 25 approved, every run; a mutation run without the transaction approved up to 44 (88,000 tokens)." },
+  { id: "T2-D3", task: "T2", title: "Normalize tool names before the admin_ check", chose: "NFKC, trim, lower case, then prefix check.", rejected: "Raw string startswith.", why: "Stops Admin_, full-width letters and zero-width characters bypassing the rule. Later replaced by the character-set rule in T2-D14." },
+  { id: "T2-D4", task: "T2", title: "Strict single parse, re-serialize to forward", chose: "Reject batches and duplicate keys; forward what we parsed.", rejected: "Forwarding raw bytes.", why: "If gateway and server read the same message differently, policy can be bypassed." },
+  { id: "T2-D5", task: "T2", title: "No token passthrough; fixed downstream", chose: "Strip the caller's Authorization; send verified subject and role; one configured downstream URL.", rejected: "Forwarding the caller's headers; routing by request.", why: "MCP security guidance forbids token passthrough; a fixed target removes SSRF." },
+  { id: "T2-D6", task: "T2", title: "Check Mcp-Method and Mcp-Name against the body", chose: "Mismatch is HTTP 400 with -32020 on the 2026-07-28 path.", rejected: "Trusting headers or ignoring them.", why: "Required by the current spec so gateways can route on headers safely." },
+  { id: "T2-D7", task: "T2", title: "Missing token is HTTP 401 with code -31001", chose: "401 with WWW-Authenticate: Bearer, body code -31001, checked before the body is read.", rejected: "Reusing -32001, or a code inside the JSON-RPC reserved range.", why: "Authentication and authorization are different failures. MCP asks for new application codes outside -32768 to -32000; the 401 is what clients act on." },
+  { id: "T2-D8", task: "T2", title: "A denied tool call is HTTP 200 with exactly the brief's error", chose: "200 and {\"code\": -32001, \"message\": \"Unauthorized Tool Call\"} with the request id, no data field.", rejected: "HTTP 403, or extra detail in the error.", why: "The brief names the error but not an HTTP status. Found by test: the official SDK client turns any non-2xx response into a generic transport error, so with 403 the client never sees -32001. Leaving out data means a test comparing the whole error object passes; the tool and role are in the log and audit record. MCP's OAuth section uses 403 for missing scopes, which this role check is not." },
+  { id: "T2-D9", task: "T2", title: "tools/list forwarded unfiltered", chose: "Forward exactly as the brief says; viewers see admin tools but cannot call them.", rejected: "Hiding admin tools from viewers.", why: "The brief asks for transparency. Filtering is a reasonable production option and is noted in the README." },
+  { id: "T2-D10", task: "T2", title: "httpx2 and Starlette, not httpx and FastAPI", chose: "httpx2 (the HTTP client the MCP SDK itself uses) and plain Starlette.", rejected: "httpx plus FastAPI.", why: "One HTTP client library instead of two, and no auto-generated docs endpoints adding surface. The gateway has one route." },
+  { id: "T2-D11", task: "T2", title: "The mock is a real MCP server", chose: "The official SDK's Streamable HTTP server with one ordinary and one admin tool, answering over SSE or JSON.", rejected: "A hand-written fake that returns canned JSON.", why: "Tests then prove the gateway works with real MCP traffic on both protocol versions, including streamed replies." },
+  { id: "T2-D12", task: "T2", title: "Denied notifications are refused, not forwarded", chose: "A tools/call notification for an admin tool gets 403 and a JSON-RPC error with no id.", rejected: "Forwarding notifications unchecked, or answering 202 and dropping it.", why: "Otherwise a caller could trigger an admin tool by leaving out the id. MCP says a notification the server cannot accept gets an HTTP error status, never 202." },
+  { id: "T2-D13", task: "T2", title: "Enforce the 2026-07-28 routing headers", chose: "For 2026-07-28 requests, MCP-Protocol-Version, Mcp-Method and (for tools/call, prompts/get, resources/read) Mcp-Name must be present, plain visible ASCII or the base64 form, and equal to the body; otherwise 400 with -32020. Older versions: only headers that are present are checked.", rejected: "Checking only headers that happen to be present.", why: "The published Streamable HTTP spec lists a missing required header as a validation failure and says intermediaries MUST answer it with an HTTP error." },
+  { id: "T2-D14", task: "T2", title: "Tool names limited to the MCP character set", chose: "Refuse names outside ASCII letters, digits, _ - . / (SEP-986) with -32602, then a case-insensitive admin_ prefix check.", rejected: "Unicode normalization (NFKC) before the prefix check.", why: "NFKC does not turn a Cyrillic a into a Latin one, so look-alikes survived. One character-set rule closes them all and is easier to explain. Ignoring case over-blocks a tool named like Admin_report; accepted as defense in depth." },
+  { id: "T2-D15", task: "T2", title: "Optional JWT mode with audience binding", chose: "Off by default. When on, accept HS256 JWTs whose issuer and audience match config exactly, with exp, iat and sub required and the role taken from a claim; algorithm pinned; secret from an environment variable, at least 32 bytes.", rejected: "Static tokens only; or trusting a role claim without checking the audience.", why: "\"Extract the user's role\" can also mean reading it from the token. The audience check is how a resource server refuses tokens issued for other services (MCP authorization, RFC 8707). Production would use the identity provider's public keys rather than a shared secret." },
+  { id: "T3-D1", task: "T3", title: "Holdback buffer with partial matching", chose: "The regex module's partial matching, plus an anchored check for complete matches that could still grow; release everything that cannot be part of a match, hold at most 256 characters.", rejected: "Buffering the whole response; fixed-size sliding windows.", why: "Keeps time to first token low and memory flat. 256 covers the longest valid email (254). Property tests prove streaming output equals whole-text redaction for any split." },
+  { id: "T3-D2", task: "T3", title: "What counts as PII", chose: "Practical email pattern; SSNs in 3-2-4 form with one separator, including numbers the SSA never issues; cards of 13 to 19 digits that pass Luhn or are written 4-4-4-4; Unicode digits and letters via \\d and \\w.", rejected: "SSA validity rules and Luhn-only cards (the original plan); NFKC shadow matching; ML detection.", why: "A guardrail should not leak made-up test data such as 999-99-9999 or 1234 5678 9012 3456. Unicode-aware classes catch full-width digits without mapping offsets between a normalized copy and the original. Nine bare digits and Luhn-failing runs pass, to keep order and tracking numbers readable." },
+  { id: "T3-D3", task: "T3", title: "Non-streamed answers are redacted too", chose: "Redact message content and tool call arguments in the full JSON answer.", rejected: "Streaming only.", why: "Otherwise \"stream\": false would be a way around the guardrail." },
+  { id: "T3-D4", task: "T3", title: "Redact per choice and per tool call", chose: "One redactor per choice and one per tool call's arguments; held text released into the finishing chunk.", rejected: "One redactor for the whole stream.", why: "Choices and tool calls interleave; mixing them would join text that never belonged together and miss PII split within one of them." },
+  { id: "T3-D5", task: "T3", title: "Provider errors never read", chose: "Close a non-200 provider response unread; return a fixed error envelope, keeping Retry-After on 429.", rejected: "Passing the provider's error through, or reading it to rewrite it.", why: "The brief's Task 4 requires no leaked upstream details, and the mock 500 carries a stack trace, a file path and an internal IP to prove it." },
+  { id: "T4-D1", task: "T4", title: "Reserve then settle", chose: "Reserve an upper-bound estimate (UTF-8 bytes / 4 of messages and tools, plus max_tokens or a default, times n) inside the transaction; settle to the provider's usage.total_tokens afterwards; refund when no provider answered.", rejected: "Counting only after the response.", why: "Counting after lets 50 parallel requests all pass a nearly full budget. Bytes rather than characters so non-English text is not undercounted. For streams the router asks the provider for usage and strips it again if the client did not ask." },
+  { id: "T4-D2", task: "T4", title: "Fail closed", chose: "503 and no provider call if the store is missing, corrupt, tampered with or locked past the busy timeout.", rejected: "Fail open.", why: "A broken limiter must not become unlimited spend, or a way to switch the limit off." },
+  { id: "T4-D3", task: "T4", title: "Failover on 429 and timeout only, by default", chose: "Fail over on the two triggers the brief names. 5xx and connection errors return 502 unless failover_on_errors = true.", rejected: "Failing over on every error.", why: "The brief specifies 429 and timeout. A 5xx often means the request itself is bad, and a second paid provider would fail it too, at double the cost." },
+  { id: "T4-D4", task: "T4", title: "One error envelope", chose: "{\"error\": {\"type\", \"code\", \"message\", \"request_id\"}} with a fixed status map, fixed messages and Retry-After.", rejected: "Passing upstream errors through.", why: "The brief requires sanitized errors. Provider error bodies are never read at all, so nothing in them can leak." },
+  { id: "T4-D5", task: "T4", title: "What \"answered within 3000 ms\" means", chose: "Plain request: the whole body inside the deadline. Stream: headers and the first chunk. After that a stream stays with its provider, with an idle cut-off (stream_idle_timeout_s).", rejected: "Headers only, or failing over mid-stream.", why: "A provider that sends 200 OK and then nothing would pass a headers-only check and hang. Switching mid-stream would send the client the start of two different answers." },
+  { id: "T4-D6", task: "T4", title: "One clock decides failover", chose: "anyio.fail_after around each attempt is the only failover clock; the HTTP client's own timeout is a backstop set above every deadline.", rejected: "Letting the client's read timeout double as the deadline.", why: "Found by the real-process test: the client's read timeout (the stream idle setting, 0.5 s in the test) fired first and failed over at 0.5 s. Two timers on one event is a timeout race; now there is one." },
+  { id: "T4-D7", task: "T4", title: "A request bigger than the window is 400, not 429", chose: "request_too_large (400) when the estimate alone exceeds the whole budget.", rejected: "429.", why: "429 tells the client to retry, and this request can never fit." },
+  { id: "T4-D8", task: "T4", title: "Exact Retry-After", chose: "Seconds until enough of the tenant's oldest rows expire for this request to fit.", rejected: "Always the window length.", why: "An honest Retry-After stops clients retrying too early (wasted calls) or waiting too long." },
+];
+
+/* ---------- per-task ledger ---------- */
+const LEDGER = {
+  F: {
+    steps: [
+      ["done", "Repo, pyproject, lock file, Python 3.12 to 3.14"],
+      ["done", "shared/errors.py: JSON-RPC errors and the gateway error envelope"],
+      ["done", "shared/logs.py: JSON logs to stderr with redaction"],
+      ["done", "shared/audit.py: OCSF decision events, hash-chained"],
+      ["done", "shared/config.py and shared/auth.py: typed config, hashed bearer tokens"],
+      ["done", "check.sh gate and GitHub Actions CI"],
+      ["done", "Security scans brought up to date; repo public; GitHub secret scanning, push protection, Dependabot"],
+      ["done", "All GitHub alerts verified at 0 through the API"],
+      ["done", "macOS and Windows added to CI: all 226 tests pass on both, first run"],
+      ["done", "docs/DECISIONS.md and docs/THREAT-MODEL.md in the repo for graders"],
+    ],
+    issues: [
+      ["Designed against an outdated MCP spec at first", "Planned from training data (2025-11-25) instead of searching. Caught in panel review; full currency check against 2026-07-28; every claim since is checked online or at the source."],
+      ["Python 3.15 broke pytest and mypy in CI", "Dropped 3.15 and capped requires-python; README notes why."],
+      ["CI secret scan read 0 bytes and failed", "Git in the scanner container refused the checkout (ownership mismatch). Run the container as the runner's user; verified it now scans about 377 KB. Lesson: check what a scanner scanned, not just its exit code."],
+      ["Coverage data file was committed", "Untracked it and added .coverage* to .gitignore."],
+    ],
+  },
+  T1: {
+    steps: [
+      ["done", "Probe the installed SDK: low-level Server, MCPError, both protocol modes"],
+      ["done", "schemas.py: strict models, advertised schema generated from them"],
+      ["done", "customers.py: fake data, Decimal balances, lock"],
+      ["done", "tools.py: dispatcher, -32602 / isError / -32603 mapping"],
+      ["done", "server.py: SDK wiring, stdio, stdout to stderr while serving"],
+      ["done", "transport.py: drain on EOF, answer unreadable lines, screen invalid ids"],
+      ["done", "Tests: models, dispatcher, in-memory client on both protocols, transport, real-process stdio, 50-thread refund race (227 total, 99% coverage)"],
+      ["done", "Requests with a null, object or boolean id answered with -32600"],
+      ["done", "Passes on Linux, macOS and Windows"],
+      ["done", "README with run steps, error table, rules, limits; verified the commands as written"],
+      ["done", "Fresh clone from GitHub passes the gate"],
+      ["done", "Optional idempotency key on trigger_refund: same key and arguments return the first receipt, a reused key with different arguments is refused, two concurrent retries pay once"],
+      ["planned", "Rehearse a live change (add a tool, change the ID rule)"],
+    ],
+    issues: [
+      ["Responses lost when stdin closed", "printf | server printed nothing. Known SDK bug (#2678, unfixed in 2.3.0). Fixed with a drain layer, 10 s cap."],
+      ["Unparsable lines and batches got no reply", "SDK drops them. Now -32700 or -32600."],
+      ["print() reached stdout at exit", "Buffered output flushed after the SDK restored stdout. sys.stdout now points at stderr while serving; test covers print and raw writes."],
+      ["Requests with a null id got no reply", "SDK reads them as notifications. Raw lines screened first; now -32600."],
+      ["Shutdown hung after the drain fix", "The SDK's output stream was never closed. Close it when the last response is written."],
+    ],
+  },
+  T2: {
+    steps: [
+      ["done", "Spike: real SDK server over Streamable HTTP, official client in memory, both protocols"],
+      ["done", "mocks/mcp_server.py: lookup_order and admin_reset_key; records headers it receives"],
+      ["done", "jsonrpc.py: one strict parse (no batches, duplicate keys, NaN, lone surrogates, null ids), forwarded as parsed"],
+      ["done", "policy.py: admin_ check on a canonical name (NFKC, invisible characters removed, case-folded)"],
+      ["done", "mcp_headers.py: Mcp-Method and Mcp-Name must match the body, including the base64 form"],
+      ["done", "proxy.py: header allowlist, no token passthrough, gateway identity headers, streamed replies"],
+      ["done", "app.py: Origin, 401, 415, 413, 400, -32020, -32001, 502/504; OCSF audit per tool call"],
+      ["done", "Tests: rules, HTTP against the real mock (SSE and JSON), official SDK client on both protocols, real processes (139 tests)"],
+      ["done", "import-linter: tasks independent, shared imports no task, product code never imports mocks"],
+      ["done", "README with run steps, verified as written against real processes"],
+      ["done", "Hardening against the published 2026-07-28 spec: routing headers enforced, refused notifications get 403 instead of 202, errors that answer no single request carry no id"],
+      ["done", "Tool names limited to the MCP character set (SEP-986), closing look-alike letters; replaces the NFKC normalization"],
+      ["done", "-32001 comes back exactly as the brief names it, with no data field"],
+      ["done", "Extra: optional JWT mode with issuer and audience binding, off by default"],
+    ],
+    issues: [
+      ["SDK client loses error codes on non-2xx", "A 403 shows up as a generic -32603 in the official client. Denials go out as HTTP 200 with the -32001 body; a test drives the SDK client to prove it."],
+      ["SDK HTTP server refused the test host name", "It checks the Host header against DNS rebinding. The mock allows localhost names explicitly."],
+      ["Lifespan crossed tasks in the test fixture", "The SDK app must start and stop in one async task; pytest-asyncio tears down in another. A background task holds it open."],
+      ["Invisible characters landed in test files", "Escapes typed into remote commands arrived as the real characters. Every file was scanned and invisible or look-alike characters restored to escapes."],
+      ["Secret scan flagged the README's curl examples", "Fake test tokens in a curl Authorization header look exactly like a leak. Caught before commit; the README now uses shell variables instead of adding a suppression."],
+      ["Port 8080 taken on the build server", "README commands verified on port 18080 with a temporary config, leaving the existing service alone."],
+      ["NFKC normalization let look-alike letters through", "NFKC does not turn a Cyrillic a into a Latin one. Replaced with one character-set rule (SEP-986) checked before a case-insensitive admin_ check."],
+      ["Refused notifications were answered 202", "MCP says a notification the server cannot accept gets an HTTP error status, never 202. Now 403 with a JSON-RPC error and no id."],
+    ],
+  },
+  T3: {
+    steps: [
+      ["done", "mocks/llm_provider.py: echoes the last user message, streams in any chunk size (mock.chunk_chars), fails on cue"],
+      ["done", "patterns.py: practical email, SSN in 3-2-4 form, cards of 13 to 19 digits by Luhn or 4-4-4-4 grouping, Unicode digits and letters"],
+      ["done", "redactor.py: holdback buffer with partial matching and an anchored \"could it still grow\" check, 256-character cap"],
+      ["done", "Incremental SSE reader; one redactor per choice and per tool call; held text released into the finishing chunk"],
+      ["done", "OpenAI-compatible endpoint on port 8081; non-streamed answers redacted too; provider errors closed unread"],
+      ["done", "Property tests: any split equals whole-text redaction and PII never survives; 139,000 random cases offline, zero mismatches"],
+      ["done", "Benchmark: median 5 us added per chunk, 99th percentile 29 us, most text ever held 19 characters; first text reaches the client about 20 ms into an 840 ms stream"],
+      ["done", "README with run steps, the PII table, latency numbers and known limits"],
+    ],
+    issues: [
+      ["Partial matching called an email complete too early", "a@mail.example was reported complete while .org was still coming. Property tests found it; an anchored check now asks whether the text from the match start could still grow."],
+      ["A card-shaped window inside a long tracking number was redacted", "Digits continuing past a separator now count as one longer number, so the window is not treated as a card."],
+      ["The in-memory test transport hid streaming", "It collects whole responses, so time to first token could not be seen there. Measured with real processes instead."],
+      ["Mock controls sent as headers never reached the mock", "The gateway rightly forwards only what the provider needs. The controls moved into the request body."],
+    ],
+  },
+  T4: {
+    steps: [
+      ["done", "estimate.py and limiter.py: UTF-8 bytes / 4 estimate, SQLite sliding window per tenant, reserve, settle, refund, fail closed"],
+      ["done", "Mutation proof: without BEGIN IMMEDIATE the 50-thread race approved up to 88,000 tokens against a 50,000 budget; with it, exactly 25 of 50 every run"],
+      ["done", "router.py and the endpoint on port 8082: primary then backup on 429 or the 3000 ms deadline, one error envelope, exact Retry-After"],
+      ["done", "Failover measured on real processes: a stalled primary hands over at 3.05 to 3.08 s, a 429 at once"],
+      ["done", "Failure-path tests: missing, corrupt, dropped-table and locked store; cancelled and timed-out attempts; provider error bodies; client leaving mid-route"],
+      ["done", "README commands verified live against real processes before commit"],
+      ["done", "612 tests at 97% branch coverage"],
+      ["done", "CI green on Linux, macOS and Windows"],
+    ],
+    issues: [
+      ["Client read timeout fired before the failover deadline", "Only real processes showed it: a stalled primary failed over at 0.5 s (the stream idle setting) instead of 3 s. Now one clock decides, anyio.fail_after per attempt, and the HTTP client's timeout is a backstop set above every deadline."],
+      ["In-memory mock responses could not stream twice", "A MockTransport response with a bytes body cannot be streamed a second time. Scripted streams use async generators instead."],
+      ["The mock could not fail and answer the same request", "The mock provider gained a fixed behavior setting, so the primary can fail while the backup answers the very same request."],
+      ["README budget demo was wrong", "Sequential requests settle to real usage and never fill a small budget. Checked live and rewritten to use two requests at once, so the second is refused while the first holds its reservation."],
+    ],
+  },
+};
+
+/* ---------- interview prep ---------- */
+const QUESTIONS = [];
+
+/* ---------- rendering ---------- */
+const $ = (s, r = document) => r.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const taskName = (id) => (TASKS.find((t) => t.id === id) || {}).name || id;
+let filterTask = "all";
+let selected = { kind: "node", id: "task1" };
+
+function threatsFor(id) { return THREATS.filter((t) => t.on.includes(id)); }
+
+function renderMeta() {
+  const built = TASKS.filter((t) => t.status === "done").length;
+  const openT = THREATS.filter((t) => t.status === "open").length;
+  $("#meta").innerHTML = `<span>Updated <b>${UPDATED}</b></span><span>Tasks built <b>${built - 1} of 4</b> + foundation</span><span>Threats tracked <b>${THREATS.length}</b> (${openT} open)</span><span>Decisions <b>${DECISIONS.length}</b></span><span>Repo <b>${REPO}</b></span>`;
+}
+
+function renderProgress() {
+  const nav = $("#progress");
+  nav.innerHTML = [{ id: "all", name: "Everything", status: "" }, ...TASKS].map((t) => {
+    const nT = t.id === "all" ? THREATS.length : THREATS.filter((x) => x.task === t.id).length;
+    const nD = t.id === "all" ? DECISIONS.length : DECISIONS.filter((x) => x.task === t.id).length;
+    const pill = t.status ? `<span class="pill s-${t.status}">${STATUS_LABEL[t.status]}</span>` : `<span class="pill s-external">all tasks</span>`;
+    return `<button type="button" data-task="${t.id}" aria-pressed="${filterTask === t.id}"><span class="t">${esc(t.name)}</span>${pill}<span class="n">${nT} threats · ${nD} decisions</span></button>`;
+  }).join("");
+  nav.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => setFilter(b.dataset.task)));
+}
+
+function setFilter(id) {
+  filterTask = id;
+  renderProgress(); renderMap(); renderTasks(); renderDecisions(); renderQuestions();
+}
+
+const SVGNS = "http://www.w3.org/2000/svg";
+function renderMap() {
+  const g = [];
+  const grp = (x, y, w, h) => `<rect class="grp" x="${x}" y="${y}" width="${w}" height="${h}" rx="6"/>`;
+  g.push(`<defs><marker id="arw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--line)"/></marker></defs>`);
+  // outside groups
+  g.push(grp(184, 48, 392, 96), `<text class="name" x="200" y="68">Callers</text><text class="lbl-risk" x="560" y="68" text-anchor="end">untrusted</text>`);
+  g.push(grp(24, 268, 136, 192), `<text class="name" x="36" y="288">Operator side</text><text class="lbl" x="36" y="304">ours, outside</text>`);
+  g.push(grp(600, 196, 136, 312), `<text class="name" x="612" y="216">Tool servers</text><text class="lbl" x="612" y="232">ours</text>`);
+  g.push(grp(200, 620, 120, 96), `<text class="lbl" x="212" y="706">On disk · ours</text>`);
+  g.push(grp(332, 620, 228, 96), `<text class="lbl" x="344" y="706">Model providers</text><text class="lbl-risk" x="548" y="706" text-anchor="end">third party</text>`);
+  g.push(grp(592, 620, 152, 96), `<text class="lbl" x="604" y="706">Build · B9</text>`);
+  // gateway zone
+  g.push(`<rect class="zone" x="184" y="176" width="392" height="420" rx="8"/><text class="name" x="560" y="200" text-anchor="end">Gateway process: trusted</text>`);
+  g.push(grp(200, 212, 360, 72), `<text class="lbl" x="212" y="230">Front door</text>`);
+  g.push(grp(200, 300, 360, 108), `<text class="lbl" x="212" y="318">Shared kit, used by every card</text>`);
+  g.push(grp(200, 420, 360, 72), `<text class="lbl" x="212" y="438">MCP lane (Task 2)</text>`);
+  g.push(grp(200, 508, 360, 72), `<text class="lbl" x="212" y="526">LLM lane (Tasks 3 and 4)</text>`);
+  // wires
+  ["M286 132 L286 238","M560 104 L690 104 L690 250","M370 256 L388 256","M144 344 L214 344","M380 360 L380 410 L146 410","M312 464 L330 464","M428 464 L446 464","M544 464 L614 464","M312 552 L330 552","M428 552 L446 552","M264 568 L264 630","M380 568 L380 630","M416 568 L416 608 L498 608 L498 630"]
+    .forEach((d) => g.push(`<path class="wire" d="${d}" marker-end="url(#arw)"/>`));
+  // nodes
+  for (const [id, n] of Object.entries(NODES)) {
+    const dim = filterTask !== "all" && n.task !== filterTask && !threatsFor(id).some((t) => t.task === filterTask);
+    const big = n.h >= 50;
+    const cx = n.x + n.w / 2;
+    const tN = threatsFor(id).filter((t) => filterTask === "all" || t.task === filterTask).length;
+    const label = big
+      ? `<text class="name" x="${cx}" y="${n.y + n.h / 2 - 2}" text-anchor="middle">${esc(n.name)}</text><text class="sub" x="${cx}" y="${n.y + n.h / 2 + 14}" text-anchor="middle">${esc(n.sub)}</text>`
+      : `<text class="name" x="${cx}" y="${n.y + n.h / 2 + 4.5}" text-anchor="middle">${esc(n.name)}</text>`;
+    const badge = tN ? `<g class="tbadge"><circle cx="${n.x + n.w - 2}" cy="${n.y + 2}" r="9"/><text x="${n.x + n.w - 2}" y="${n.y + 5.5}" text-anchor="middle">${tN}</text></g>` : "";
+    g.push(`<g class="node st-${n.status}${selected.kind === "node" && selected.id === id ? " sel" : ""}" data-id="${id}" tabindex="0" role="button" aria-label="${esc(n.name)}, ${STATUS_LABEL[n.status]}, ${tN} threats" style="opacity:${dim ? 0.35 : 1}"><rect class="box" x="${n.x}" y="${n.y}" width="${n.w}" height="${n.h}" rx="6"/>${label}${badge}</g>`);
+  }
+  // boundary badges
+  for (const [id, b] of Object.entries(BOUNDS)) {
+    const dim = filterTask !== "all" && b.task !== filterTask && !threatsFor(id).some((t) => t.task === filterTask);
+    g.push(`<g class="bnd${selected.kind === "bnd" && selected.id === id ? " sel" : ""}" data-id="${id}" tabindex="0" role="button" aria-label="Boundary ${id}: ${esc(b.name)}" style="opacity:${dim ? 0.35 : 1}"><circle cx="${b.cx}" cy="${b.cy}" r="12"/><text x="${b.cx}" y="${b.cy + 4}" text-anchor="middle">${id}</text></g>`);
+  }
+  g.push(`<text class="sub" x="24" y="752">Red dashed line: the gateway trust zone. B6 is the one path that skips the gateway: an MCP client launching the Task 1 server directly.</text>`);
+  g.push(`<text class="sub" x="24" y="770">Tap any box or badge for its threats, defenses, proof and decisions.</text>`);
+  const svg = $("#map");
+  svg.innerHTML = g.join("");
+  svg.querySelectorAll(".node, .bnd").forEach((el) => {
+    const kind = el.classList.contains("node") ? "node" : "bnd";
+    const go = () => select(kind, el.dataset.id);
+    el.addEventListener("click", go);
+    el.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
+  });
+}
+
+function refButtons(ids) {
+  if (!ids || !ids.length) return "";
+  return `<div class="refs">${ids.map((d) => `<button type="button" class="ref" data-ref="${d}">${d}</button>`).join("")}</div>`;
+}
+function wireRefs(root) {
+  root.querySelectorAll(".ref").forEach((b) => b.addEventListener("click", () => jumpToDecision(b.dataset.ref)));
+}
+
+function select(kind, id) {
+  selected = { kind, id };
+  renderMap(); renderPanel();
+}
+
+function renderPanel() {
+  const p = $("#panel");
+  const isNode = selected.kind === "node";
+  const item = isNode ? NODES[selected.id] : BOUNDS[selected.id];
+  const ts = threatsFor(selected.id);
+  const status = isNode ? `<span class="pill s-${item.status}">${STATUS_LABEL[item.status]}</span>` : `<span class="pill s-open">trust boundary</span>`;
+  const head = `<div class="head"><p class="eyebrow">${isNode ? "Component" : "Boundary " + selected.id} · ${esc(taskName(item.task))}</p><h2>${esc(item.name)}</h2><div class="row">${status}<span class="note">${ts.length} threat${ts.length === 1 ? "" : "s"} tracked</span></div><p class="what">${esc(item.what)}</p></div>`;
+  const list = ts.length ? `<div class="threats">${ts.map((t) => `
+    <div class="threat k-${t.status}">
+      <div class="row"><span class="tt">${esc(t.title)}</span><span class="pill s-${t.status}">${t.status === "done" ? "defended + tested" : t.status === "partial" ? "defended, partly tested" : t.status === "open" ? "open, accepted" : "planned"}</span></div>
+      <dl><dt>Class</dt><dd>${esc(t.owasp)}</dd><dt>Defense</dt><dd>${esc(t.defense)}</dd><dt>Proof</dt><dd>${esc(t.proof)}</dd></dl>
+      ${refButtons(t.decisions)}
+    </div>`).join("")}</div>` : `<p class="note">No threats tracked here yet. ${item.status === "external" ? "It sits outside what we build; its risks show up on the boundary it crosses." : ""}</p>`;
+  p.innerHTML = head + list;
+  wireRefs(p);
+}
+
+function renderChips(container, onPick) {
+  const el = $(container);
+  el.innerHTML = [{ id: "all", name: "All" }, ...TASKS].map((t) => `<button type="button" class="chip" data-task="${t.id}" aria-pressed="${filterTask === t.id}">${esc(t.id === "all" ? "All" : t.id === "F" ? "Foundation" : t.id.replace("T", "Task "))}</button>`).join("");
+  el.querySelectorAll(".chip").forEach((c) => c.addEventListener("click", () => setFilter(c.dataset.task)));
+}
+
+function renderTasks() {
+  renderChips("#taskchips");
+  const show = TASKS.filter((t) => filterTask === "all" || t.id === filterTask);
+  $("#taskcards").innerHTML = show.map((t) => {
+    const L = LEDGER[t.id];
+    const qs = QUESTIONS.filter((q) => q.task === t.id).length;
+    const steps = `<ol class="steps">${L.steps.map(([s, txt]) => `<li class="${s}"><span>${esc(txt)}</span></li>`).join("")}</ol>`;
+    const issues = L.issues.length ? `<ul class="issues">${L.issues.map(([i, h]) => `<li><b>${esc(i)}</b><span class="how">${esc(h)}</span></li>`).join("")}</ul>` : `<p class="note">None yet: not built.</p>`;
+    const tN = THREATS.filter((x) => x.task === t.id);
+    const byS = (s) => tN.filter((x) => x.status === s).length;
+    return `<article class="taskcard">
+      <div class="blockhead"><div><p class="eyebrow">${t.id === "F" ? "Foundation" : t.id.replace("T", "Task ")}</p><h3>${esc(t.name)}</h3></div><span class="pill s-${t.status}">${STATUS_LABEL[t.status]}</span></div>
+      <p class="what" style="color:var(--muted)">${esc(t.blurb)} <span class="mono">${tN.length} threats: ${byS("done")} defended + tested, ${byS("partial")} partial, ${byS("planned")} planned, ${byS("open")} open.</span></p>
+      <div class="cols"><div><h3>Build steps</h3>${steps}</div><div><h3>Issues found and how we handled them</h3>${issues}</div></div>
+    </article>`;
+  }).join("");
+}
+
+function renderDecisions() {
+  renderChips("#decchips");
+  const rows = DECISIONS.filter((d) => filterTask === "all" || d.task === filterTask);
+  $("#dectable").innerHTML = `<thead><tr><th>ID</th><th>Decision</th><th>We chose</th><th>Instead of</th><th>Why</th></tr></thead><tbody>${rows.map((d) => `
+    <tr id="dec-${d.id}"><td class="id">${d.id}<div class="alt">${esc(d.task === "F" ? "Foundation" : d.task.replace("T", "Task "))}</div></td><td class="min"><b>${esc(d.title)}</b></td><td class="min">${esc(d.chose)}</td><td class="min">${esc(d.rejected)}</td><td class="min">${esc(d.why)}</td></tr>`).join("")}</tbody>`;
+}
+
+function jumpToDecision(id) {
+  if (filterTask !== "all" && !DECISIONS.some((d) => d.id === id && d.task === filterTask)) setFilter("all");
+  const row = document.getElementById("dec-" + id);
+  if (!row) return;
+  row.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "center" });
+  row.classList.add("flash");
+  setTimeout(() => row.classList.remove("flash"), 1600);
+}
+
+function renderQuestions() {
+  return; // interview prep is kept out of the public copy
+  renderChips("#qchips");
+  const qs = QUESTIONS.filter((q) => filterTask === "all" || q.task === filterTask);
+  $("#qlist").innerHTML = qs.length ? qs.map((q) => `
+    <details class="q"><summary><span>${esc(q.q)}</span><span class="tag">${esc(q.task === "F" ? "Foundation" : q.task.replace("T", "Task "))}</span></summary>
+      <div class="ans"><ul>${q.a.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>${refButtons(q.refs)}</div></details>`).join("") : `<p class="note">No questions for this task yet.</p>`;
+  wireRefs($("#qlist"));
+}
+
+renderMeta(); renderProgress(); renderMap(); renderPanel(); renderTasks(); renderDecisions(); renderQuestions();
+</script>

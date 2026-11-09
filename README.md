@@ -25,6 +25,12 @@ Targets MCP specification 2026-07-28, and still accepts 2025-11-25 clients.
                         └───────────────────────────────────────────────────────────────────────┘
 ```
 
+## Threat map
+
+![Container diagram of all four tasks inside one trust zone, with threat counts on each component and boundary crossings B1 to B9](docs/c4-diagram.png)
+
+The red dots count the threats tracked on each part, and B1 to B9 mark every place data crosses the trust boundary. The [interactive version](https://rdmilly.github.io/quilr-gateway-assessment/review.html) lets you click any box to see its threats, the defense, the test that proves it and the decision behind it, with the build steps and the full decision log below.
+
 ## Where to look first
 
 | Task | The core of it | The test that proves it |
