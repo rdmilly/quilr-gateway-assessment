@@ -359,7 +359,9 @@ def task4(port: int) -> None:
 def main() -> int:
     print("QuilrAI assessment: a guided tour of all four tasks")
     print("Starting the mock servers and the three gateways on free local ports...")
-    with tempfile.TemporaryDirectory(prefix="quilr-demo-") as tmp:
+    # Windows keeps file locks for a moment after a process stops; a leftover temp file is
+    # harmless, so cleanup errors are ignored rather than failing the tour.
+    with tempfile.TemporaryDirectory(prefix="quilr-demo-", ignore_cleanup_errors=True) as tmp:
         task1()
         with services(Path(tmp)) as ports:
             task2(ports["gw"])
