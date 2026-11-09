@@ -2,6 +2,18 @@
 
 Built for the QuilrAI Solution Architect take-home, November 2026.
 
+## Review in two minutes
+
+Needs Python 3.12 to 3.14 and [uv](https://docs.astral.sh/uv/).
+
+```bash
+uv sync
+uv run python -m demo     # starts everything, shows each task working, stops everything (about 20 s)
+./check.sh                # the full gate: lint, types, import rules, every test
+```
+
+The demo starts the mock servers and the gateways on free local ports, sends real requests, and prints what came back with a pass or fail for each behavior the brief asks for: stdout purity and -32602 in Task 1, -32001 for a viewer in Task 2, `[REDACTED]` mid-stream in Task 3, failover at 3 seconds and a clean 502 in Task 4. Nothing to configure, no keys needed.
+
 Four parts, each runnable on its own:
 
 | Task | What it is | Folder | Status |
@@ -42,7 +54,7 @@ The red dots count the threats tracked on each part, and B1 to B9 mark every pla
 
 ## Proof, in numbers
 
-- 612 tests, 97% branch coverage (the gate fails below 90%), green on Linux (Python 3.12 to 3.14), macOS and Windows.
+- 613 tests, 97% branch coverage (the gate fails below 90%), green on Linux (Python 3.12 to 3.14), macOS and Windows.
 - Task 3 adds 5 µs median per chunk and sends the first text about 20 ms into an 840 ms stream.
 - Task 4: 50 threads racing for one budget get exactly 25 approvals; with the transaction removed the same race approved 88,000 tokens against 50,000. A stalled primary hands over to the backup at 3.05 to 3.08 s over real sockets.
 - 0 open code scanning, secret scanning or Dependabot alerts.

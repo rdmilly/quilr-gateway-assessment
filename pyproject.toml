@@ -58,7 +58,7 @@ select = ["E", "F", "I", "B", "UP", "S", "SIM", "ASYNC", "BLE", "DTZ", "PT", "RU
 
 [tool.mypy]
 strict = true
-files = ["shared", "task1_mcp_server", "task2_mcp_gateway", "task3_pii_guardrail", "task4_rate_limit_failover", "mocks", "tests"]
+files = ["shared", "task1_mcp_server", "task2_mcp_gateway", "task3_pii_guardrail", "task4_rate_limit_failover", "mocks", "demo", "tests"]
 explicit_package_bases = true
 
 [tool.coverage.run]
